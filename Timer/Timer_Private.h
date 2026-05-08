@@ -8,7 +8,7 @@
 #ifndef TIMER_PRIVATE_H
 #define TIMER_PRIVATE_H
 
-#include "Std_Types.h"
+#include "../Lib/Std_Types.h"
 
 /* TIMx register map (General-purpose: TIM2–TIM5)*/
 typedef struct {

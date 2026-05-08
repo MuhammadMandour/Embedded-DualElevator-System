@@ -8,7 +8,7 @@
 #ifndef TIMER_H
 #define TIMER_H
 
-#include "Std_Types.h"
+#include "../Lib/Std_Types.h"
 
 /* Timer IDs (General-purpose timers) */
 #define TIMER2    2U

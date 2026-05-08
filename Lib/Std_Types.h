@@ -7,6 +7,8 @@
 #ifndef STD_TYPES_H
 #define STD_TYPES_H
 
+#include <stdint.h>
+
 typedef signed char         sint8;          /*        -128 .. +127            */
 typedef unsigned char       uint8;          /*           0 .. 255             */
 typedef signed short        sint16;         /*      -32768 .. +32767          */
@@ -24,6 +26,8 @@ typedef unsigned char       boolean;        /* for use with TRUE/FALSE        */
 #define FALSE               ((boolean)0)
 #define TRUE                ((boolean)1)
 
+#ifndef NULL
 #define NULL               ((void*)0)
+#endif
 
 #endif /* STD_TYPES_H */

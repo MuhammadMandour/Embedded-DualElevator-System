@@ -9,7 +9,7 @@
 
 #include "Bit_Operations.h"
 #include "Rcc_Private.h"
-#include "Std_Types.h"
+#include "../Lib/Std_Types.h"
 
 void Rcc_Init(void) {
     SET_BIT(RCC_CR, 0);

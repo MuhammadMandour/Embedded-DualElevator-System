@@ -8,7 +8,7 @@
 #ifndef SPI_H
 #define SPI_H
 
-#include "Std_Types.h"
+#include "../Lib/Std_Types.h"
 
 typedef struct 
 {

@@ -8,7 +8,7 @@
 #ifndef EXTI_H
 #define EXTI_H
 
-#include "Std_Types.h"
+#include "../Lib/Std_Types.h"
 
 /*LineNumber*/
 #define EXTI_LINE_0    0U

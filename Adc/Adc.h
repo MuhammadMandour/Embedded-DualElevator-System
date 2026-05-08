@@ -8,7 +8,7 @@
 #ifndef ADC_H
 #define ADC_H
 
-#include "Std_Types.h"
+#include "../Lib/Std_Types.h"
 
 /* ADC Channels */
 #define ADC_CHANNEL_0    0U

@@ -6,7 +6,7 @@
  */
 
 
-#include "Std_Types.h"
+#include "../Lib/Std_Types.h"
 #include "Gpio.h"
 #include "Gpio_Private.h"
 

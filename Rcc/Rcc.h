@@ -7,7 +7,7 @@
 
 #ifndef RCC_H
 #define RCC_H
-#include "Std_Types.h"
+#include "../Lib/Std_Types.h"
 
 #define RCC_AHB1 0UL
 #define RCC_AHB2 1UL

@@ -8,7 +8,7 @@
 #ifndef ADC_PRIVATE_H
 #define ADC_PRIVATE_H
 
-#include "Std_Types.h"
+#include "../Lib/Std_Types.h"
 
 /* ADC1 register map (STM32F401) */
 typedef struct {

@@ -1,7 +1,7 @@
 #ifndef LCD_H
 #define LCD_H
 
-#include "Std_Types.h"
+#include "../Lib/Std_Types.h"
 
 /**
  * @brief Initialize the LCD in 4-bit mode.
