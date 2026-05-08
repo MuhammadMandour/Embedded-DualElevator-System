@@ -8,7 +8,6 @@ Exact names to search in Proteus library:
 - STM32F401VE (x2)
 - BUTTON (x15 Master, x9 Slave)
 - LED-RED (x2, motor simulation)
-- LED-YELLOW (x8, floor indicators, optional)
 - RES (330 ohm, x2 for motor LEDs)
 - VIRTUAL TERMINAL (x1, connected to Master UART)
 - Power/Ground terminals
@@ -59,7 +58,7 @@ PWM duty controls brightness:
 ## 6. UART Virtual Terminal
 Master PA9 TX to Virtual Terminal RX.
 
-Baud: 115200, 8N1. RX is optional; sending `R` toggles emergency mode during debug.
+Baud: 115200, 8N1.
 
 ## 7. PWM Math
 Timer clock assumed: 16 MHz.

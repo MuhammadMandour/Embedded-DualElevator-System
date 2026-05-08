@@ -197,12 +197,6 @@ int main(void) {
             }
         }
 
-        /* UART RX */
-        uint8_t rx_data;
-        if (Usart1_GetByte(&rx_data) && rx_data == 'R') {
-            Elevator_RunFSM(&elev_a, ELEV_EVENT_EMERGENCY_TOGGLE);
-        }
-
         /* Process Timer Events */
         if (door_timeout_flag) {
             door_timeout_flag = 0;
