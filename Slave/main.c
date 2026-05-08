@@ -6,43 +6,6 @@
    TIM4:   0x40000800 | TIM5:  0x40000C00
    SPI1:   0x40013000 | USART1: 0x40011000
    NVIC:   0xE000E100
-
-   === TIMER ALLOCATION ===
-   TIM2 → UART telemetry 500ms        (self-rearming, non-reentrant)
-   TIM3 → Door-open 3000ms one-shot   (exclusive — never reused)
-   TIM4 → Motor PWM 10kHz             (exclusive — never passed to Timer_DelayMsAsync)
-   TIM5 → SPI exchange/watchdog 50ms  (self-rearming, non-reentrant)
-
-   === PWM MATH (10kHz @ 16MHz HSI) ===
-   PSC=15, ARR=99 → F = 16MHz / (16 × 100) = 10kHz
-   Duty 0% → CCR=0 | Duty 20% → CCR=20 | Duty 100% → CCR=100
-
-   === MOTOR PIN ===
-   PB6 / TIM4_CH1 / AF2 on BOTH boards. PA6 = SPI1 MISO only — never PWM.
-
-   === SPI FRAME ===
-   [0xA5][State][CurFloor][TgtFloor][Dir][ReqMask][Flags][XOR 0-6]
-
-   === SPI FAULT POLICY ===
-   4 consecutive invalid frames → fault flag = 1.
-   One valid frame → immediate full reset of counter and flag.
-
-   === HALLWAY MAP (Master PC0–PC5) ===
-   PC0=Up@F1 PC1=Dn@F2 PC2=Up@F2 PC3=Dn@F3 PC4=Up@F3 PC5=Dn@F4
-
-   === DISPATCHER SCORES ===
-   1=CommFault 2=Immediate 3=PerfectMatch 4=PassedMatch 99=OppDir 6+=IdleNearest
-   Tie → Elevator A wins (deterministic by design)
-
-   === VOLATILE RULE ===
-   Only scalar flags/counters/indices are volatile.
-   Buffers and structs use Enter_Critical/Exit_Critical only.
-
-   === FLOOR SENSOR DEBOUNCE ===
-   20ms per-floor lockout via timestamp. Prevents double-trigger on bounce.
-
-   === OVERFLOW POLICY ===
-   pending_calls[16]: drop oldest on overflow — circular overwrite.
 */
 
 #include <stdio.h>
@@ -59,274 +22,217 @@
 #include "../Nvic/Nvic.h"
 #include "../LCD/lcd.h"
 
-volatile uint8_t spi_fault_flag = 0, spi_fault_counter = 0, spi_watchdog_counter = 0;
-volatile uint8_t emergency_flag = 0, door_open_flag = 0, spi_rx_ready = 0;
-volatile uint8_t floor_sensor_flags = 0, cabin_button_flags = 0;
-volatile ElevatorState_t elev_b_state = ELEV_IDLE;
+volatile uint8_t exti_triggered[16] = {0};
+volatile uint8_t spi_rx_ready = 0;
+volatile uint8_t spi_timeout_flag = 0;
+volatile uint8_t door_timeout_flag = 0;
 
 ElevatorContext_t elev_b;
 uint8_t slave_tx_packet[8];
 uint8_t slave_rx_packet[8];
 
-static volatile uint32_t global_ms = 0;
-
-static inline uint32_t Get_TickMs(void) {
-    uint32_t cnt = *((volatile uint32_t*)(0x40000000 + 0x24));
-    return global_ms + cnt;
-}
-
-void Door_TimeoutCallback(void) {
-    Enter_Critical();
-    if (elev_b.state == ELEV_DOOR_OPEN) {
-        elev_b.state = ELEV_IDLE;
-        elev_b_state = ELEV_IDLE;
-    }
-    Exit_Critical();
-    Elevator_UpdateMotor(&elev_b);
-}
-
-void Process_FloorSensor(uint8_t floor) {
-    static volatile uint32_t last_trigger_ms[4] = {0, 0, 0, 0};
-    uint32_t now = Get_TickMs();
-    if ((now - last_trigger_ms[floor - 1]) < 20) return;
-    last_trigger_ms[floor - 1] = now;
-
-    Enter_Critical();
-    elev_b.current_floor = floor;
-    if (elev_b.state == ELEV_MOVING_UP || elev_b.state == ELEV_MOVING_DOWN) {
-        if (floor == elev_b.target_floor) {
-            elev_b.state = ELEV_DOOR_OPEN;
-            elev_b_state = ELEV_DOOR_OPEN;
-            elev_b.request_mask &= ~(1 << (floor - 1));
-            
-            Timer_Stop(TIMER3);
-            Timer_DelayMsAsync(TIMER3, 3000, Door_TimeoutCallback);
-        }
-    }
-    Exit_Critical();
-    Elevator_UpdateMotor(&elev_b);
-}
-
-void EXTI0_Callback(void) {
-    if (Gpio_ReadPin(GPIO_A, 0) == LOW) Process_FloorSensor(1);
-    if (Gpio_ReadPin(GPIO_B, 0) == LOW) {
-        Enter_Critical();
-        elev_b.request_mask |= (1 << 0);
-        if(elev_b.state == ELEV_IDLE) {
-            elev_b.target_floor = 1;
-            if(elev_b.target_floor > elev_b.current_floor) elev_b.state = ELEV_MOVING_UP;
-            else if(elev_b.target_floor < elev_b.current_floor) elev_b.state = ELEV_MOVING_DOWN;
-        }
-        Exit_Critical();
-        Elevator_UpdateMotor(&elev_b);
-    }
-}
-
-void EXTI1_Callback(void) {
-    if (Gpio_ReadPin(GPIO_A, 1) == LOW) Process_FloorSensor(2);
-    if (Gpio_ReadPin(GPIO_B, 1) == LOW) {
-        Enter_Critical();
-        elev_b.request_mask |= (1 << 1);
-        if(elev_b.state == ELEV_IDLE) {
-            elev_b.target_floor = 2;
-            if(elev_b.target_floor > elev_b.current_floor) elev_b.state = ELEV_MOVING_UP;
-            else if(elev_b.target_floor < elev_b.current_floor) elev_b.state = ELEV_MOVING_DOWN;
-        }
-        Exit_Critical();
-        Elevator_UpdateMotor(&elev_b);
-    }
-}
-
-void EXTI2_Callback(void) {
-    if (Gpio_ReadPin(GPIO_A, 2) == LOW) Process_FloorSensor(3);
-    if (Gpio_ReadPin(GPIO_B, 2) == LOW) {
-        Enter_Critical();
-        elev_b.request_mask |= (1 << 2);
-        if(elev_b.state == ELEV_IDLE) {
-            elev_b.target_floor = 3;
-            if(elev_b.target_floor > elev_b.current_floor) elev_b.state = ELEV_MOVING_UP;
-            else if(elev_b.target_floor < elev_b.current_floor) elev_b.state = ELEV_MOVING_DOWN;
-        }
-        Exit_Critical();
-        Elevator_UpdateMotor(&elev_b);
-    }
-}
-
-void EXTI3_Callback(void) {
-    if (Gpio_ReadPin(GPIO_A, 3) == LOW) Process_FloorSensor(4);
-    if (Gpio_ReadPin(GPIO_B, 3) == LOW) {
-        Enter_Critical();
-        elev_b.request_mask |= (1 << 3);
-        if(elev_b.state == ELEV_IDLE) {
-            elev_b.target_floor = 4;
-            if(elev_b.target_floor > elev_b.current_floor) elev_b.state = ELEV_MOVING_UP;
-            else if(elev_b.target_floor < elev_b.current_floor) elev_b.state = ELEV_MOVING_DOWN;
-        }
-        Exit_Critical();
-        Elevator_UpdateMotor(&elev_b);
-    }
-}
+void EXTI0_Callback(void) { exti_triggered[0] = 1; }
+void EXTI1_Callback(void) { exti_triggered[1] = 1; }
+void EXTI2_Callback(void) { exti_triggered[2] = 1; }
+void EXTI3_Callback(void) { exti_triggered[3] = 1; }
 
 void EXTI4_Callback(void) {
-    /* PA4 CS or PB4 Emergency */
-    if (Gpio_ReadPin(GPIO_A, 4) == LOW) {
-        /* SPI_CS_ISR */
-        for (uint8_t i = 0; i < 8; i++) {
-            Spi1_TransmitReceiveByte(slave_tx_packet[i], &slave_rx_packet[i]);
-        }
-        if (SPI_ValidateFrame(slave_rx_packet)) {
-            spi_watchdog_counter = 0;
-            Enter_Critical();
-            /* extract target/direction */
-            if (slave_rx_packet[3] != 0 && elev_b.state == ELEV_IDLE) {
-                elev_b.target_floor = slave_rx_packet[3];
-                if(elev_b.target_floor > elev_b.current_floor) elev_b.state = ELEV_MOVING_UP;
-                else if(elev_b.target_floor < elev_b.current_floor) elev_b.state = ELEV_MOVING_DOWN;
-                else elev_b.state = ELEV_DOOR_OPEN;
-            }
-            Exit_Critical();
-            spi_rx_ready = 1;
-        }
-    }
-    
     if (Gpio_ReadPin(GPIO_B, 4) == LOW) {
-        Enter_Critical();
-        if (elev_b.state == ELEV_EMERGENCY) {
-            elev_b.state = ELEV_IDLE;
-            elev_b_state = ELEV_IDLE;
-        } else {
-            elev_b.state = ELEV_EMERGENCY;
-            elev_b_state = ELEV_EMERGENCY;
-        }
-        Exit_Critical();
-        Elevator_UpdateMotor(&elev_b);
+        exti_triggered[4] = 1;
     }
 }
+void EXTI8_Callback(void) { exti_triggered[8] = 1; }
+void EXTI9_Callback(void) { exti_triggered[9] = 1; }
+void EXTI10_Callback(void) { exti_triggered[10] = 1; }
+void EXTI11_Callback(void) { exti_triggered[11] = 1; }
 
-void SPI_WatchdogTick(void) {
-    spi_watchdog_counter++;
-    if (spi_watchdog_counter >= 4) {
-        Enter_Critical();
-        if(elev_b.state == ELEV_IDLE || elev_b.state == ELEV_MOVING_UP || elev_b.state == ELEV_MOVING_DOWN) {
-            elev_b.state = ELEV_INDEPENDENT;
-            elev_b_state = ELEV_INDEPENDENT;
-        }
-        Exit_Critical();
-        Elevator_UpdateMotor(&elev_b);
-    }
-    Timer_DelayMsAsync(TIMER5, 50, SPI_WatchdogTick);
+void SpiSlaveComplete_Callback(void) {
+    spi_rx_ready = 1;
 }
 
-void UART_SendStatus(void) {
-    global_ms += 500;
-    /* Optional: Slave could also send status, but master handles it in this spec.
-       To prevent compilation warnings, we keep it empty or log minimally */
-    Timer_DelayMsAsync(TIMER2, 500, UART_SendStatus);
-}
+void DoorTimer_Callback(void) { door_timeout_flag = 1; }
+void SpiWatchdog_Callback(void) { spi_timeout_flag = 1; }
 
 void Peripheral_Init(void) {
     Rcc_Init();
-    Rcc_Enable(RCC_GPIOA);
-    Rcc_Enable(RCC_GPIOB);
-    Rcc_Enable(RCC_GPIOE);
+    Rcc_Enable(RCC_GPIOA); Rcc_Enable(RCC_GPIOB); Rcc_Enable(RCC_GPIOE);
+    Rcc_Enable(RCC_TIM2); Rcc_Enable(RCC_TIM3); Rcc_Enable(RCC_TIM4); Rcc_Enable(RCC_TIM5);
+    Rcc_Enable(RCC_SPI1); Rcc_Enable(RCC_USART1);
 
-    Rcc_Enable(RCC_TIM2);
-    Rcc_Enable(RCC_TIM3);
-    Rcc_Enable(RCC_TIM4);
-    Rcc_Enable(RCC_TIM5);
+    for(uint8_t i=0; i<=3; i++) Gpio_Init(GPIO_A, i, GPIO_INPUT, GPIO_PULL_UP);
+    Gpio_Init(GPIO_A, 4, GPIO_AF, GPIO_PUSH_PULL); Gpio_SetAF(GPIO_A, 4, GPIO_AF5);
+    Gpio_Init(GPIO_A, 5, GPIO_AF, GPIO_PUSH_PULL); Gpio_SetAF(GPIO_A, 5, GPIO_AF5);
+    Gpio_Init(GPIO_A, 6, GPIO_AF, GPIO_PUSH_PULL); Gpio_SetAF(GPIO_A, 6, GPIO_AF5);
+    Gpio_Init(GPIO_A, 7, GPIO_AF, GPIO_PUSH_PULL); Gpio_SetAF(GPIO_A, 7, GPIO_AF5);
+    Gpio_Init(GPIO_A, 9, GPIO_AF, GPIO_PUSH_PULL); Gpio_SetAF(GPIO_A, 9, GPIO_AF7);
 
-    Rcc_Enable(RCC_SPI1);
-    Rcc_Enable(RCC_USART1);
+    Gpio_Init(GPIO_B, 4, GPIO_INPUT, GPIO_PULL_UP);
+    Gpio_Init(GPIO_B, 6, GPIO_AF, GPIO_PUSH_PULL); Gpio_SetAF(GPIO_B, 6, GPIO_AF2);
+    for(uint8_t i=8; i<=11; i++) Gpio_Init(GPIO_B, i, GPIO_INPUT, GPIO_PULL_UP);
 
-    /* GPIO Config PA */
-    for(uint8_t i=0; i<=3; i++) Gpio_Init(GPIO_A, i, GPIO_INPUT, GPIO_PULL_UP); /* Floor sensors */
-    Gpio_Init(GPIO_A, 4, GPIO_INPUT, GPIO_PULL_UP); /* CS input with EXTI */
-    Gpio_Init(GPIO_A, 5, GPIO_AF, GPIO_PUSH_PULL); Gpio_SetAF(GPIO_A, 5, GPIO_AF5); /* SCK */
-    Gpio_Init(GPIO_A, 6, GPIO_AF, GPIO_PUSH_PULL); Gpio_SetAF(GPIO_A, 6, GPIO_AF5); /* MISO */
-    Gpio_Init(GPIO_A, 7, GPIO_AF, GPIO_PUSH_PULL); Gpio_SetAF(GPIO_A, 7, GPIO_AF5); /* MOSI */
-    Gpio_Init(GPIO_A, 9, GPIO_AF, GPIO_PUSH_PULL); Gpio_SetAF(GPIO_A, 9, GPIO_AF7); /* TX */
+    for(uint8_t i=7; i<=12; i++) Gpio_Init(GPIO_E, i, GPIO_OUTPUT, GPIO_PUSH_PULL);
 
-    /* GPIO Config PB */
-    for(uint8_t i=0; i<=4; i++) Gpio_Init(GPIO_B, i, GPIO_INPUT, GPIO_PULL_UP); /* Cabin + Emerg */
-    Gpio_Init(GPIO_B, 6, GPIO_AF, GPIO_PUSH_PULL); Gpio_SetAF(GPIO_B, 6, GPIO_AF2); /* PWM */
-
-    /* GPIO Config PE */
-    for(uint8_t i=7; i<=12; i++) Gpio_Init('E', i, GPIO_OUTPUT, GPIO_PUSH_PULL); /* LCD */
-
-    /* PWM */
     Pwm_Init(TIMER4, PWM_CHANNEL_1, 15, 99);
     Pwm_Start(TIMER4, PWM_CHANNEL_1);
 
-    /* SPI & UART */
     Spi1_Init(SPI_SLAVE, SPI_IDLE_LOW, SPI_SAMPLE_FIRST_TRANSITION);
     Usart1_Init();
     lcd_init();
 
-    /* EXTI */
     Exti_Init(EXTI_LINE_0, EXTI_PORT_A, EXTI_EDGE_FALLING, EXTI0_Callback);
-    Exti_Init(EXTI_LINE_0, EXTI_PORT_B, EXTI_EDGE_FALLING, EXTI0_Callback);
-    
     Exti_Init(EXTI_LINE_1, EXTI_PORT_A, EXTI_EDGE_FALLING, EXTI1_Callback);
-    Exti_Init(EXTI_LINE_1, EXTI_PORT_B, EXTI_EDGE_FALLING, EXTI1_Callback);
-
     Exti_Init(EXTI_LINE_2, EXTI_PORT_A, EXTI_EDGE_FALLING, EXTI2_Callback);
-    Exti_Init(EXTI_LINE_2, EXTI_PORT_B, EXTI_EDGE_FALLING, EXTI2_Callback);
-
     Exti_Init(EXTI_LINE_3, EXTI_PORT_A, EXTI_EDGE_FALLING, EXTI3_Callback);
-    Exti_Init(EXTI_LINE_3, EXTI_PORT_B, EXTI_EDGE_FALLING, EXTI3_Callback);
+    Exti_Init(EXTI_LINE_4, EXTI_PORT_B, EXTI_EDGE_FALLING, EXTI4_Callback);
+    Exti_Init(EXTI_LINE_8, EXTI_PORT_B, EXTI_EDGE_FALLING, EXTI8_Callback);
+    Exti_Init(EXTI_LINE_9, EXTI_PORT_B, EXTI_EDGE_FALLING, EXTI9_Callback);
+    Exti_Init(EXTI_LINE_10, EXTI_PORT_B, EXTI_EDGE_FALLING, EXTI10_Callback);
+    Exti_Init(EXTI_LINE_11, EXTI_PORT_B, EXTI_EDGE_FALLING, EXTI11_Callback);
 
-    Exti_Init(EXTI_LINE_4, EXTI_PORT_A, EXTI_EDGE_FALLING, EXTI4_Callback); /* CS */
-    Exti_Init(EXTI_LINE_4, EXTI_PORT_B, EXTI_EDGE_FALLING, EXTI4_Callback); /* Emergency */
+    for(uint8_t i=0; i<=11; i++) {
+        if (i <= 4 || (i >= 8 && i <= 11)) Exti_Enable(i);
+    }
 
-    /* Enable EXTI Lines */
-    for(uint8_t i=0; i<=4; i++) Exti_Enable(i);
+    Nvic_EnableIrq(10); Nvic_EnableIrq(6); Nvic_EnableIrq(7);
+    Nvic_EnableIrq(8); Nvic_EnableIrq(9);
 
-    /* NVIC */
-    Nvic_EnableIrq(10); /* EXTI4 (Emergency priority 0,0 conceptual) */
-    Nvic_EnableIrq(6);  /* EXTI0 */
-    Nvic_EnableIrq(7);  /* EXTI1 */
-    Nvic_EnableIrq(8);  /* EXTI2 */
-    Nvic_EnableIrq(9);  /* EXTI3 */
+    /* Requirement 5: Emergency EXTI must have highest priority */
+    Nvic_SetPriority(10, 0);
 
-    /* Timers */
-    Timer_Init(TIMER2, 15999, 500);
-    Timer_Init(TIMER3, 15999, 3000);
-    Timer_Init(TIMER5, 15999, 50);
+    Timer_DelayMsAsync(TIMER5, 250, SpiWatchdog_Callback);
+}
 
-    Timer_DelayMsAsync(TIMER2, 500, UART_SendStatus);
-    Timer_DelayMsAsync(TIMER5, 50, SPI_WatchdogTick);
+static void Process_FloorSensor(uint8_t floor) {
+    if (elev_b.current_floor != floor) {
+        elev_b.current_floor = floor;
+        if (elev_b.current_floor == elev_b.target_floor) {
+            Elevator_RunFSM(&elev_b, ELEV_EVENT_FLOOR_REACHED);
+            if (elev_b.state == ELEV_DOOR_OPEN) {
+                Timer_DelayMsAsync(TIMER3, 3000, DoorTimer_Callback);
+            }
+        }
+    }
+}
+
+static void Slave_AddCabinRequest(uint8_t floor) {
+    elev_b.request_mask |= (1 << (floor - 1));
+    if (elev_b.state == ELEV_IDLE || elev_b.state == ELEV_DOOR_OPEN || elev_b.state == ELEV_INDEPENDENT) {
+        elev_b.target_floor = floor;
+        if (elev_b.current_floor == floor) {
+            Elevator_RunFSM(&elev_b, ELEV_EVENT_FLOOR_REACHED);
+            Timer_DelayMsAsync(TIMER3, 3000, DoorTimer_Callback);
+        }
+    }
+}
+
+static void Slave_SelectNextCabinTarget(void) {
+    if (!(elev_b.state == ELEV_IDLE || elev_b.state == ELEV_DOOR_OPEN || elev_b.state == ELEV_INDEPENDENT)) return;
+    if (elev_b.request_mask == 0) return;
+
+    uint8_t best_floor = elev_b.current_floor;
+    uint8_t best_diff = 0xFF;
+    for (uint8_t floor = 1; floor <= 4; floor++) {
+        if (elev_b.request_mask & (1 << (floor - 1))) {
+            uint8_t diff = (floor > elev_b.current_floor) ? (floor - elev_b.current_floor) : (elev_b.current_floor - floor);
+            if (diff < best_diff) {
+                best_diff = diff;
+                best_floor = floor;
+            }
+        }
+    }
+    elev_b.target_floor = best_floor;
+}
+
+static void Process_ExtiLine(uint8_t line) {
+    switch (line) {
+        case 0: if (Gpio_ReadPin(GPIO_A, 0) == LOW) Process_FloorSensor(1); break;
+        case 1: if (Gpio_ReadPin(GPIO_A, 1) == LOW) Process_FloorSensor(2); break;
+        case 2: if (Gpio_ReadPin(GPIO_A, 2) == LOW) Process_FloorSensor(3); break;
+        case 3: if (Gpio_ReadPin(GPIO_A, 3) == LOW) Process_FloorSensor(4); break;
+        case 4: if (Gpio_ReadPin(GPIO_B, 4) == LOW) Elevator_RunFSM(&elev_b, ELEV_EVENT_EMERGENCY_TOGGLE); break;
+        case 8: if (Gpio_ReadPin(GPIO_B, 8) == LOW) Slave_AddCabinRequest(1); break;
+        case 9: if (Gpio_ReadPin(GPIO_B, 9) == LOW) Slave_AddCabinRequest(2); break;
+        case 10: if (Gpio_ReadPin(GPIO_B, 10) == LOW) Slave_AddCabinRequest(3); break;
+        case 11: if (Gpio_ReadPin(GPIO_B, 11) == LOW) Slave_AddCabinRequest(4); break;
+        default: break;
+    }
 }
 
 int main(void) {
     Elevator_InitContext(&elev_b, 1);
-    SPI_PackFrame(&elev_b, slave_tx_packet);
-
     Peripheral_Init();
+    Enter_Critical();
+    SPI_PackFrame(&elev_b, slave_tx_packet);
+    Spi1_StartAsync(slave_tx_packet, slave_rx_packet, 8, SpiSlaveComplete_Callback);
+    Exit_Critical();
 
     lcd_clear();
     lcd_send_string("Slave Ready");
 
     while (1) {
-        if (spi_rx_ready) {
-            spi_rx_ready = 0;
-            Enter_Critical();
-            SPI_PackFrame(&elev_b, slave_tx_packet);
-            Exit_Critical();
-            Elevator_UpdateMotor(&elev_b);
-        }
-        
-        uint8_t rx_data;
-        if (Usart1_GetByte(&rx_data)) {
-            if (rx_data == 'R') {
-                Enter_Critical();
-                if (elev_b.state == ELEV_EMERGENCY) {
-                    elev_b.state = ELEV_IDLE;
-                    elev_b_state = ELEV_IDLE;
-                }
-                Exit_Critical();
-                Elevator_UpdateMotor(&elev_b);
+        /* Process EXTI Events */
+        for (uint8_t line = 0; line < 12; line++) {
+            if (exti_triggered[line]) {
+                exti_triggered[line] = 0;
+                Process_ExtiLine(line);
             }
         }
+
+        /* UART RX */
+        uint8_t rx_data;
+        if (Usart1_GetByte(&rx_data) && rx_data == 'R') {
+            Elevator_RunFSM(&elev_b, ELEV_EVENT_EMERGENCY_TOGGLE);
+        }
+
+        /* Process Timer Events */
+        if (door_timeout_flag) {
+            door_timeout_flag = 0;
+            Elevator_RunFSM(&elev_b, ELEV_EVENT_DOOR_TIMEOUT);
+        }
+
+        if (spi_timeout_flag) {
+            spi_timeout_flag = 0;
+            Elevator_RunFSM(&elev_b, ELEV_EVENT_SPI_TIMEOUT);
+        }
+
+        /* SPI processing */
+        if (spi_rx_ready) {
+            spi_rx_ready = 0;
+            if (SPI_ValidateFrame(slave_rx_packet)) {
+                elev_b.spi_alive = 1;
+                if (elev_b.state == ELEV_INDEPENDENT) {
+                    elev_b.state = ELEV_IDLE;
+                }
+                if (slave_rx_packet[3] != 0 && elev_b.state == ELEV_IDLE) {
+                    elev_b.target_floor = slave_rx_packet[3];
+                }
+                /* Restart Watchdog */
+                Timer_DelayMsAsync(TIMER5, 250, SpiWatchdog_Callback);
+            }
+            Enter_Critical();
+            SPI_PackFrame(&elev_b, slave_tx_packet);
+            /* Pre-load next frame before Master initiates */
+            Spi1_StartAsync(slave_tx_packet, slave_rx_packet, 8, SpiSlaveComplete_Callback);
+            Exit_Critical();
+        }
+
+        /* Update FSM if target updated */
+        Slave_SelectNextCabinTarget();
+        if ((elev_b.state == ELEV_IDLE || elev_b.state == ELEV_DOOR_OPEN || elev_b.state == ELEV_INDEPENDENT) &&
+            (elev_b.request_mask & (1 << (elev_b.current_floor - 1)))) {
+            Elevator_RunFSM(&elev_b, ELEV_EVENT_FLOOR_REACHED);
+            if (elev_b.state == ELEV_DOOR_OPEN) {
+                Timer_DelayMsAsync(TIMER3, 3000, DoorTimer_Callback);
+            }
+        } else if (elev_b.target_floor != elev_b.current_floor &&
+            (elev_b.state == ELEV_IDLE || elev_b.state == ELEV_DOOR_OPEN || elev_b.state == ELEV_INDEPENDENT)) {
+            Elevator_RunFSM(&elev_b, ELEV_EVENT_TARGET_UPDATED);
+            if (elev_b.state == ELEV_DOOR_OPEN) {
+                Timer_DelayMsAsync(TIMER3, 3000, DoorTimer_Callback);
+            }
+        }
+
+        Elevator_UpdateMotor(&elev_b);
     }
     return 0;
 }

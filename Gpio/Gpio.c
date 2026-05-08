@@ -12,7 +12,7 @@
 
 #define GPIO_REG(PORT_ID, REG_ID)          ((volatile uint32 *) ((PORT_ID) + (REG_ID)))
 
-uint32 addressMap[4] = {GPIOA_BASE_ADDR, GPIOB_BASE_ADDR, GPIOC_BASE_ADDR, GPIOD_BASE_ADDR};
+uint32 addressMap[5] = {GPIOA_BASE_ADDR, GPIOB_BASE_ADDR, GPIOC_BASE_ADDR, GPIOD_BASE_ADDR, GPIOE_BASE_ADDR};
 
 void Gpio_Init(uint8 PortName, uint8 PinNumber, uint8 PinMode, uint8 DefaultState) {
 

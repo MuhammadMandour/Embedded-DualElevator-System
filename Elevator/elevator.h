@@ -11,8 +11,17 @@ typedef enum {
     ELEV_MOVING_DOWN = 2,
     ELEV_DOOR_OPEN   = 3,
     ELEV_EMERGENCY   = 4,
-    ELEV_INDEPENDENT = 5   /* always defined — Master never enters this state */
+    ELEV_INDEPENDENT = 5
 } ElevatorState_t;
+
+typedef enum {
+    ELEV_EVENT_NONE = 0,
+    ELEV_EVENT_TARGET_UPDATED,
+    ELEV_EVENT_FLOOR_REACHED,
+    ELEV_EVENT_DOOR_TIMEOUT,
+    ELEV_EVENT_EMERGENCY_TOGGLE,
+    ELEV_EVENT_SPI_TIMEOUT
+} ElevatorEvent_t;
 
 typedef struct {
     ElevatorState_t state;
@@ -26,8 +35,7 @@ typedef struct {
 } ElevatorContext_t;
 
 void Elevator_InitContext(ElevatorContext_t* ctx, uint8_t initial_floor);
-
-/* Call this periodically or when state changes to update the PWM */
+void Elevator_RunFSM(ElevatorContext_t* ctx, ElevatorEvent_t event);
 void Elevator_UpdateMotor(ElevatorContext_t* ctx);
 
 #endif /* ELEVATOR_H */

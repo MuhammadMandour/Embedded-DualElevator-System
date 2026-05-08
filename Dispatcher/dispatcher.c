@@ -32,8 +32,7 @@ void Dispatcher_AddCall(uint8_t floor, uint8_t direction) {
 uint8_t Dispatcher_CalculateScore(ElevatorContext_t* ctx, uint8_t call_floor, uint8_t call_dir, uint8_t spi_fault_flag) {
     if(!ctx) return 99;
     
-    /* State 5 = ELEV_INDEPENDENT treated as score 99 */
-    if (ctx->state == ELEV_INDEPENDENT || ctx->state == ELEV_EMERGENCY) return 99;
+    if (ctx->state == ELEV_EMERGENCY || ctx->state == ELEV_INDEPENDENT) return 99;
     
     if (ctx->state == ELEV_IDLE && ctx->current_floor == call_floor) {
         return 2; /* Immediate */
@@ -88,11 +87,7 @@ void Dispatcher_ReevaluateQueue(ElevatorContext_t* elev_a, ElevatorContext_t* el
         } else if (score_a <= score_b) {
             /* Assign to A (Tie → Elevator A wins deterministically) */
             elev_a->target_floor = call.floor;
-            if(elev_a->state == ELEV_IDLE) {
-                if(elev_a->target_floor > elev_a->current_floor) elev_a->state = ELEV_MOVING_UP;
-                else if(elev_a->target_floor < elev_a->current_floor) elev_a->state = ELEV_MOVING_DOWN;
-                else elev_a->state = ELEV_DOOR_OPEN; /* edge case */
-            }
+            elev_a->request_mask |= (1 << (call.floor - 1));
             assigned = 1;
         } else {
             /* Assign to B */

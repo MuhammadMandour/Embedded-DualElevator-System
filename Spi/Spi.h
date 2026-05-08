@@ -45,4 +45,6 @@ void Spi1_Init(uint8 MasterSlave, uint8 ClkPol, uint8 ClkPhase);
 
 uint8 Spi1_TransmitReceiveByte(uint8 TxData, uint8* RxData);
 
+void Spi1_StartAsync(uint8* tx_buf, uint8* rx_buf, uint8 len, void (*callback)(void));
+
 #endif /* SPI_H */

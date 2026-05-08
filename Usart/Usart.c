@@ -11,9 +11,11 @@
 #include "RingBuffer.h"
 #include "Nvic.h"
 #include "../Lib/Std_Types.h"
+#include "../Critical/critical.h"
 // #include "../../Downloads/stm32f4-sec9 (1)/Gpio/Gpio.h"
 
 static RingBufferType usart1_rx_ring;
+static RingBufferType usart1_tx_ring;
 
 void Usart1_Init(void) {
     Gpio_Init(GPIO_A, 9, GPIO_AF, GPIO_PUSH_PULL);
@@ -29,7 +31,7 @@ void Usart1_Init(void) {
 
     USART1->CR1 &= ~(1 << USART_CR1_OVER8_Pos); // 16 over sampling
 
-    USART1->BRR = 0x683; // Baud Rate 9600
+    USART1->BRR = 0x8B; // Baud Rate 115200 at 16 MHz, oversampling by 16
 
     /* Enable Transmission block */
     USART1->CR1 |= (1 << USART_CR1_TE_Pos);
@@ -39,6 +41,7 @@ void Usart1_Init(void) {
     
     /* Initialize RingBuffer for RX */
     RB_Init(&usart1_rx_ring);
+    RB_Init(&usart1_tx_ring);
     
     /* Enable RX Not Empty interrupt */
     USART1->CR1 |= USART_CR1_RXNEIE;
@@ -51,23 +54,22 @@ void Usart1_Init(void) {
 }
 
 uint8 Usart1_TransmitByte(uint8 Byte) {
-    if (USART1->SR & USART_SR_TXE_Msk) {
-        USART1->DR = Byte;
-        while (!(USART1->SR & USART_SR_TC_Msk));
-        USART1->SR &= ~(USART_SR_TC_Msk); // Clearing TC bit
-        return Tx_OK;
+    Enter_Critical();
+    boolean queued = RB_Enqueue(&usart1_tx_ring, Byte);
+    if (queued) {
+        USART1->CR1 |= USART_CR1_TXEIE;
     }
-    return Tx_NOK;
+    Exit_Critical();
+    return queued ? Tx_OK : Tx_NOK;
 }
 
 void Usart1_TransmitString(const char *Str) {
     uint32 i = 0;
-    uint8 transmitResult = -1;
     while (Str[i] != '\0') {
-        transmitResult = Usart1_TransmitByte(Str[i]);
-        if (transmitResult == Tx_OK) {
-            i++;
+        if (Usart1_TransmitByte(Str[i]) != Tx_OK) {
+            break;
         }
+        i++;
     }
 }
 
@@ -142,5 +144,13 @@ void USART1_IRQHandler(void) {
     if (USART1->SR & USART_SR_RXNE) {
         uint8 byte = USART1->DR;   // reading DR clears RXNE flag
         RB_Enqueue(&usart1_rx_ring, byte);
+    }
+    if ((USART1->SR & USART_SR_TXE) && (USART1->CR1 & USART_CR1_TXEIE)) {
+        uint8 byte;
+        if (RB_Dequeue(&usart1_tx_ring, &byte)) {
+            USART1->DR = byte;
+        } else {
+            USART1->CR1 &= ~USART_CR1_TXEIE;
+        }
     }
 }

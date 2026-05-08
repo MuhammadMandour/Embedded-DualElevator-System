@@ -2,6 +2,16 @@
 
 void SPI_PackFrame(ElevatorContext_t* ctx, uint8_t* frame) {
     if(!ctx || !frame) return;
+
+    if (ctx->state == ELEV_MOVING_UP) {
+        ctx->direction = 1;
+    } else if (ctx->state == ELEV_MOVING_DOWN) {
+        ctx->direction = 2;
+    } else {
+        ctx->direction = 0;
+    }
+    ctx->emergency_flag = (ctx->state == ELEV_EMERGENCY);
+    ctx->door_open_flag = (ctx->state == ELEV_DOOR_OPEN);
     
     frame[0] = SPI_HEADER_BYTE;
     frame[1] = (uint8_t)ctx->state;

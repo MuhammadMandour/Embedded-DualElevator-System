@@ -9,3 +9,7 @@ void Nvic_EnableIrq(uint8 IrqNumber) {
 void Nvic_DisableIrq(uint8 IrqNumber) {
     NVIC_DisableIRQ((IRQn_Type)IrqNumber);
 }
+
+void Nvic_SetPriority(uint8 IrqNumber, uint8 Priority) {
+    NVIC_SetPriority((IRQn_Type)IrqNumber, Priority);
+}
