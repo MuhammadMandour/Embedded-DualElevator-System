@@ -11,7 +11,6 @@ Exact names to search in Proteus library:
 - LED-YELLOW (x8, floor indicators, optional)
 - RES (330 ohm, x2 for motor LEDs)
 - VIRTUAL TERMINAL (x1, connected to Master UART)
-- LM016L or LCD 16x2 (x2, one per board)
 - Power/Ground terminals
 
 ## 2. SPI Bus (Master to Slave)
@@ -57,25 +56,12 @@ PWM duty controls brightness:
 - 20% = slow/dim
 - 100% = full speed/full brightness
 
-## 6. LCD Wiring (both boards, 4-bit mode)
-| LCD Pin | Board Pin | Notes |
-|---------|-----------|-------|
-| RS | PE11 | |
-| EN | PE12 | |
-| D4 | PE7 | |
-| D5 | PE8 | |
-| D6 | PE9 | |
-| D7 | PE10 | |
-| VSS/RW | GND | RW tied to GND |
-| VDD | 3.3V | |
-| V0 | GND | Max contrast |
-
-## 7. UART Virtual Terminal
+## 6. UART Virtual Terminal
 Master PA9 TX to Virtual Terminal RX.
 
 Baud: 115200, 8N1. RX is optional; sending `R` toggles emergency mode during debug.
 
-## 8. PWM Math
+## 7. PWM Math
 Timer clock assumed: 16 MHz.
 
 `PWM frequency = 16 MHz / ((PSC + 1) * (ARR + 1))`
@@ -84,7 +70,7 @@ Current firmware uses `PSC=15`, `ARR=99`:
 
 `16 MHz / (16 * 100) = 10 kHz`
 
-## 9. SPI Packet Definition
+## 8. SPI Packet Definition
 Fixed frame length: 8 bytes.
 
 | Byte | Meaning |
@@ -98,7 +84,7 @@ Fixed frame length: 8 bytes.
 | 6 | Flags: bit0 emergency, bit1 door open, bit2 SPI alive |
 | 7 | XOR checksum of bytes 0-6 |
 
-## 10. Common Mistakes
+## 9. Common Mistakes
 - Missing common GND between boards corrupts SPI frames.
 - PB6 is PWM; PA6 must stay SPI MISO.
 - CS/NSS must connect PA4 to PA4.

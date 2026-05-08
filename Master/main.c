@@ -21,7 +21,6 @@
 #include "../Spi/Spi.h"
 #include "../Usart/Usart.h"
 #include "../Nvic/Nvic.h"
-#include "../LCD/lcd.h"
 
 volatile uint8_t exti_triggered[16] = {0};
 volatile uint8_t spi_trigger_flag = 0;
@@ -65,7 +64,7 @@ void UartTimer_Callback(void) { uart_trigger_flag = 1; }
 void Peripheral_Init(void) {
     Rcc_Init();
     Rcc_Enable(RCC_GPIOA); Rcc_Enable(RCC_GPIOB);
-    Rcc_Enable(RCC_GPIOC); Rcc_Enable(RCC_GPIOD); Rcc_Enable(RCC_GPIOE);
+    Rcc_Enable(RCC_GPIOC); Rcc_Enable(RCC_GPIOD);
     Rcc_Enable(RCC_TIM2); Rcc_Enable(RCC_TIM3);
     Rcc_Enable(RCC_TIM4); Rcc_Enable(RCC_TIM5);
     Rcc_Enable(RCC_SPI1); Rcc_Enable(RCC_USART1);
@@ -84,14 +83,11 @@ void Peripheral_Init(void) {
 
     for(uint8_t i=5; i<=7; i++) Gpio_Init(GPIO_C, i, GPIO_INPUT, GPIO_PULL_UP);
     for(uint8_t i=12; i<=14; i++) Gpio_Init(GPIO_C, i, GPIO_INPUT, GPIO_PULL_UP);
-    for(uint8_t i=7; i<=12; i++) Gpio_Init(GPIO_E, i, GPIO_OUTPUT, GPIO_PUSH_PULL);
-
     Pwm_Init(TIMER4, PWM_CHANNEL_1, 15, 99);
     Pwm_Start(TIMER4, PWM_CHANNEL_1);
 
     Spi1_Init(SPI_MASTER, SPI_IDLE_LOW, SPI_SAMPLE_FIRST_TRANSITION);
     Usart1_Init();
-    lcd_init();
 
     Exti_Init(EXTI_LINE_0, EXTI_PORT_A, EXTI_EDGE_FALLING, EXTI0_Callback);
     Exti_Init(EXTI_LINE_1, EXTI_PORT_A, EXTI_EDGE_FALLING, EXTI1_Callback);
@@ -191,8 +187,6 @@ int main(void) {
     Elevator_InitContext(&elev_a, 1);
     Elevator_InitContext(&elev_b, 1);
     Peripheral_Init();
-    lcd_clear();
-    lcd_send_string("Master Ready");
 
     while (1) {
         /* Process EXTI Events */

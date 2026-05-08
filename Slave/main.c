@@ -20,7 +20,6 @@
 #include "../Spi/Spi.h"
 #include "../Usart/Usart.h"
 #include "../Nvic/Nvic.h"
-#include "../LCD/lcd.h"
 
 volatile uint8_t exti_triggered[16] = {0};
 volatile uint8_t spi_rx_ready = 0;
@@ -55,7 +54,7 @@ void SpiWatchdog_Callback(void) { spi_timeout_flag = 1; }
 
 void Peripheral_Init(void) {
     Rcc_Init();
-    Rcc_Enable(RCC_GPIOA); Rcc_Enable(RCC_GPIOB); Rcc_Enable(RCC_GPIOE);
+    Rcc_Enable(RCC_GPIOA); Rcc_Enable(RCC_GPIOB);
     Rcc_Enable(RCC_TIM2); Rcc_Enable(RCC_TIM3); Rcc_Enable(RCC_TIM4); Rcc_Enable(RCC_TIM5);
     Rcc_Enable(RCC_SPI1); Rcc_Enable(RCC_USART1);
 
@@ -70,14 +69,11 @@ void Peripheral_Init(void) {
     Gpio_Init(GPIO_B, 6, GPIO_AF, GPIO_PUSH_PULL); Gpio_SetAF(GPIO_B, 6, GPIO_AF2);
     for(uint8_t i=8; i<=11; i++) Gpio_Init(GPIO_B, i, GPIO_INPUT, GPIO_PULL_UP);
 
-    for(uint8_t i=7; i<=12; i++) Gpio_Init(GPIO_E, i, GPIO_OUTPUT, GPIO_PUSH_PULL);
-
     Pwm_Init(TIMER4, PWM_CHANNEL_1, 15, 99);
     Pwm_Start(TIMER4, PWM_CHANNEL_1);
 
     Spi1_Init(SPI_SLAVE, SPI_IDLE_LOW, SPI_SAMPLE_FIRST_TRANSITION);
     Usart1_Init();
-    lcd_init();
 
     Exti_Init(EXTI_LINE_0, EXTI_PORT_A, EXTI_EDGE_FALLING, EXTI0_Callback);
     Exti_Init(EXTI_LINE_1, EXTI_PORT_A, EXTI_EDGE_FALLING, EXTI1_Callback);
@@ -165,9 +161,6 @@ int main(void) {
     SPI_PackFrame(&elev_b, slave_tx_packet);
     Spi1_StartAsync(slave_tx_packet, slave_rx_packet, 8, SpiSlaveComplete_Callback);
     Exit_Critical();
-
-    lcd_clear();
-    lcd_send_string("Slave Ready");
 
     while (1) {
         /* Process EXTI Events */
