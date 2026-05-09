@@ -42,7 +42,7 @@ void Spi1_Init(uint8 MasterSlave, uint8 ClkPol, uint8 ClkPhase) {
   /*************************************************************************/
   // Baud Rate
   SPI1->CR1 &= ~(0x7 << SPI_CR1_BR_Pos);
-  SPI1->CR1 |= (0x1 << SPI_CR1_BR_Pos);  // 16/4 -> 4MHZ
+  SPI1->CR1 |= (0x5 << SPI_CR1_BR_Pos);  // 16/64 -> 250 kHz, stable in Proteus
   /*************************************************************************/
 
   SPI1->CR1 |= (1 << SPI_CR1_SPE_Pos);

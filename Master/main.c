@@ -213,11 +213,17 @@ int main(void) {
 
     while (1) {
         /* Process EXTI Events */
+        uint8_t exti_handled = 0;
         for (uint8_t line = 0; line < 15; line++) {
             if (exti_triggered[line]) {
                 exti_triggered[line] = 0;
                 Process_ExtiLine(line);
+                exti_handled = 1;
             }
+        }
+
+        if (exti_handled) {
+            prev_input_mask = Master_ReadInputMask();
         }
 
         uint16_t input_mask = Master_ReadInputMask();
