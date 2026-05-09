@@ -47,7 +47,6 @@ void EXTI7_Callback(void) { exti_triggered[7] = 1; }
 void EXTI8_Callback(void) { exti_triggered[8] = 1; }
 void EXTI9_Callback(void) { exti_triggered[9] = 1; }
 void EXTI10_Callback(void) { exti_triggered[10] = 1; }
-void EXTI11_Callback(void) { exti_triggered[11] = 1; }
 void EXTI12_Callback(void) { exti_triggered[12] = 1; }
 void EXTI13_Callback(void) { exti_triggered[13] = 1; }
 void EXTI14_Callback(void) { exti_triggered[14] = 1; }
@@ -67,7 +66,10 @@ void Peripheral_Init(void) {
     Rcc_Enable(RCC_GPIOC); Rcc_Enable(RCC_GPIOD);
     Rcc_Enable(RCC_TIM2); Rcc_Enable(RCC_TIM3);
     Rcc_Enable(RCC_TIM4); Rcc_Enable(RCC_TIM5);
-    Rcc_Enable(RCC_SPI1); Rcc_Enable(RCC_USART1);
+    Rcc_Enable(RCC_SPI1); Rcc_Enable(RCC_USART1); Rcc_Enable(RCC_SYSCFG);
+
+    Usart1_Init();
+    Usart1_TransmitString("UART OK\r\n");
 
     for(uint8_t i=0; i<=3; i++) Gpio_Init(GPIO_A, i, GPIO_INPUT, GPIO_PULL_UP);
     Gpio_Init(GPIO_A, 4, GPIO_OUTPUT, GPIO_PUSH_PULL); Gpio_WritePin(GPIO_A, 4, HIGH);
@@ -79,7 +81,8 @@ void Peripheral_Init(void) {
 
     Gpio_Init(GPIO_B, 4, GPIO_INPUT, GPIO_PULL_UP);
     Gpio_Init(GPIO_B, 6, GPIO_AF, GPIO_PUSH_PULL); Gpio_SetAF(GPIO_B, 6, GPIO_AF2);
-    for(uint8_t i=8; i<=11; i++) Gpio_Init(GPIO_B, i, GPIO_INPUT, GPIO_PULL_UP);
+    for(uint8_t i=8; i<=10; i++) Gpio_Init(GPIO_B, i, GPIO_INPUT, GPIO_PULL_UP);
+    Gpio_Init(GPIO_B, 12, GPIO_INPUT, GPIO_PULL_UP);
 
     for(uint8_t i=5; i<=7; i++) Gpio_Init(GPIO_C, i, GPIO_INPUT, GPIO_PULL_UP);
     for(uint8_t i=12; i<=14; i++) Gpio_Init(GPIO_C, i, GPIO_INPUT, GPIO_PULL_UP);
@@ -87,7 +90,6 @@ void Peripheral_Init(void) {
     Pwm_Start(TIMER4, PWM_CHANNEL_1);
 
     Spi1_Init(SPI_MASTER, SPI_IDLE_LOW, SPI_SAMPLE_FIRST_TRANSITION);
-    Usart1_Init();
 
     Exti_Init(EXTI_LINE_0, EXTI_PORT_A, EXTI_EDGE_FALLING, EXTI0_Callback);
     Exti_Init(EXTI_LINE_1, EXTI_PORT_A, EXTI_EDGE_FALLING, EXTI1_Callback);
@@ -100,7 +102,6 @@ void Peripheral_Init(void) {
     Exti_Init(EXTI_LINE_8, EXTI_PORT_B, EXTI_EDGE_FALLING, EXTI8_Callback);
     Exti_Init(EXTI_LINE_9, EXTI_PORT_B, EXTI_EDGE_FALLING, EXTI9_Callback);
     Exti_Init(EXTI_LINE_10, EXTI_PORT_B, EXTI_EDGE_FALLING, EXTI10_Callback);
-    Exti_Init(EXTI_LINE_11, EXTI_PORT_B, EXTI_EDGE_FALLING, EXTI11_Callback);
     Exti_Init(EXTI_LINE_12, EXTI_PORT_C, EXTI_EDGE_FALLING, EXTI12_Callback);
     Exti_Init(EXTI_LINE_13, EXTI_PORT_C, EXTI_EDGE_FALLING, EXTI13_Callback);
     Exti_Init(EXTI_LINE_14, EXTI_PORT_C, EXTI_EDGE_FALLING, EXTI14_Callback);
@@ -160,33 +161,55 @@ static void Master_SelectNextCabinTarget(void) {
 
 static void Process_ExtiLine(uint8_t line) {
     switch (line) {
-        case 0: if (Gpio_ReadPin(GPIO_A, 0) == LOW) Process_FloorSensor(1); break;
-        case 1: if (Gpio_ReadPin(GPIO_A, 1) == LOW) Process_FloorSensor(2); break;
-        case 2: if (Gpio_ReadPin(GPIO_A, 2) == LOW) Process_FloorSensor(3); break;
-        case 3: if (Gpio_ReadPin(GPIO_A, 3) == LOW) Process_FloorSensor(4); break;
+        case 0: if (Gpio_ReadPin(GPIO_A, 0) == LOW) { Usart1_TransmitString("Floor sensor F1\r\n"); Process_FloorSensor(1); } break;
+        case 1: if (Gpio_ReadPin(GPIO_A, 1) == LOW) { Usart1_TransmitString("Floor sensor F2\r\n"); Process_FloorSensor(2); } break;
+        case 2: if (Gpio_ReadPin(GPIO_A, 2) == LOW) { Usart1_TransmitString("Floor sensor F3\r\n"); Process_FloorSensor(3); } break;
+        case 3: if (Gpio_ReadPin(GPIO_A, 3) == LOW) { Usart1_TransmitString("Floor sensor F4\r\n"); Process_FloorSensor(4); } break;
         case 4:
             if (Gpio_ReadPin(GPIO_B, 4) == LOW) {
+                Usart1_TransmitString("Emergency\r\n");
                 Elevator_RunFSM(&elev_a, ELEV_EVENT_EMERGENCY_TOGGLE);
             }
             break;
-        case 5: if (Gpio_ReadPin(GPIO_C, 5) == LOW) Dispatcher_AddCall(1, 1); break;  /* U1 */
-        case 6: if (Gpio_ReadPin(GPIO_C, 6) == LOW) Dispatcher_AddCall(2, 2); break;  /* D2 */
-        case 7: if (Gpio_ReadPin(GPIO_C, 7) == LOW) Dispatcher_AddCall(2, 1); break;  /* U2 */
-        case 8: if (Gpio_ReadPin(GPIO_B, 8) == LOW) Master_AddCabinRequest(1); break;
-        case 9: if (Gpio_ReadPin(GPIO_B, 9) == LOW) Master_AddCabinRequest(2); break;
-        case 10: if (Gpio_ReadPin(GPIO_B, 10) == LOW) Master_AddCabinRequest(3); break;
-        case 11: if (Gpio_ReadPin(GPIO_B, 11) == LOW) Master_AddCabinRequest(4); break;
-        case 12: if (Gpio_ReadPin(GPIO_C, 12) == LOW) Dispatcher_AddCall(3, 2); break; /* D3 */
-        case 13: if (Gpio_ReadPin(GPIO_C, 13) == LOW) Dispatcher_AddCall(3, 1); break; /* U3 */
-        case 14: if (Gpio_ReadPin(GPIO_C, 14) == LOW) Dispatcher_AddCall(4, 2); break; /* D4 */
+        case 5: if (Gpio_ReadPin(GPIO_C, 5) == LOW) { Usart1_TransmitString("Hall U1\r\n"); Dispatcher_AddCall(1, 1); } break;
+        case 6: if (Gpio_ReadPin(GPIO_C, 6) == LOW) { Usart1_TransmitString("Hall D2\r\n"); Dispatcher_AddCall(2, 2); } break;
+        case 7: if (Gpio_ReadPin(GPIO_C, 7) == LOW) { Usart1_TransmitString("Hall U2\r\n"); Dispatcher_AddCall(2, 1); } break;
+        case 8: if (Gpio_ReadPin(GPIO_B, 8) == LOW) { Usart1_TransmitString("Cabin F1\r\n"); Master_AddCabinRequest(1); } break;
+        case 9: if (Gpio_ReadPin(GPIO_B, 9) == LOW) { Usart1_TransmitString("Cabin F2\r\n"); Master_AddCabinRequest(2); } break;
+        case 10: if (Gpio_ReadPin(GPIO_B, 10) == LOW) { Usart1_TransmitString("Cabin F3\r\n"); Master_AddCabinRequest(3); } break;
+        case 12: if (Gpio_ReadPin(GPIO_C, 12) == LOW) { Usart1_TransmitString("Hall D3\r\n"); Dispatcher_AddCall(3, 2); } break;
+        case 13: if (Gpio_ReadPin(GPIO_C, 13) == LOW) { Usart1_TransmitString("Hall U3\r\n"); Dispatcher_AddCall(3, 1); } break;
+        case 14: if (Gpio_ReadPin(GPIO_C, 14) == LOW) { Usart1_TransmitString("Hall D4\r\n"); Dispatcher_AddCall(4, 2); } break;
         default: break;
     }
+}
+
+static uint16_t Master_ReadInputMask(void) {
+    uint16_t mask = 0;
+
+    for (uint8_t line = 0; line <= 3; line++) {
+        if (Gpio_ReadPin(GPIO_A, line) == LOW) mask |= (uint16_t)(1U << line);
+    }
+    if (Gpio_ReadPin(GPIO_B, 4) == LOW) mask |= (uint16_t)(1U << 4);
+    for (uint8_t line = 5; line <= 7; line++) {
+        if (Gpio_ReadPin(GPIO_C, line) == LOW) mask |= (uint16_t)(1U << line);
+    }
+    for (uint8_t line = 8; line <= 10; line++) {
+        if (Gpio_ReadPin(GPIO_B, line) == LOW) mask |= (uint16_t)(1U << line);
+    }
+    if (Gpio_ReadPin(GPIO_C, 12) == LOW) mask |= (uint16_t)(1U << 12);
+    if (Gpio_ReadPin(GPIO_C, 13) == LOW) mask |= (uint16_t)(1U << 13);
+    if (Gpio_ReadPin(GPIO_C, 14) == LOW) mask |= (uint16_t)(1U << 14);
+
+    return mask;
 }
 
 int main(void) {
     Elevator_InitContext(&elev_a, 1);
     Elevator_InitContext(&elev_b, 1);
     Peripheral_Init();
+    uint16_t prev_input_mask = Master_ReadInputMask();
+    uint8_t cabin_f4_was_low = (Gpio_ReadPin(GPIO_B, 12) == LOW);
 
     while (1) {
         /* Process EXTI Events */
@@ -196,6 +219,23 @@ int main(void) {
                 Process_ExtiLine(line);
             }
         }
+
+        uint16_t input_mask = Master_ReadInputMask();
+        uint16_t pressed_mask = input_mask & (uint16_t)(~prev_input_mask);
+        for (uint8_t line = 0; line < 15; line++) {
+            if (pressed_mask & (uint16_t)(1U << line)) {
+                Process_ExtiLine(line);
+            }
+        }
+        prev_input_mask = input_mask;
+
+        /* PB12 shares EXTI line 12 with PC12, so cabin F4 is edge-polled here. */
+        uint8_t cabin_f4_is_low = (Gpio_ReadPin(GPIO_B, 12) == LOW);
+        if (cabin_f4_is_low && !cabin_f4_was_low) {
+            Usart1_TransmitString("Cabin F4\r\n");
+            Master_AddCabinRequest(4);
+        }
+        cabin_f4_was_low = cabin_f4_is_low;
 
         /* Process Timer Events */
         if (door_timeout_flag) {

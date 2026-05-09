@@ -26,13 +26,15 @@ Common GND is mandatory. Floating ground causes corrupted SPI frames.
 ## 3. Master Input Wiring
 All buttons/sensors are wired as: pin to button/switch to GND. Internal pull-up is enabled in firmware.
 
-Each input uses a unique EXTI line. Do not wire multiple same-numbered pins such as `PA0`, `PB0`, and `PC0` as separate EXTI inputs on the same MCU; STM32 maps only one GPIO port to each EXTI line.
+Each interrupt-driven input uses a unique EXTI line. Do not wire multiple same-numbered pins such as `PA0`, `PB0`, and `PC0` as separate EXTI inputs on the same MCU; STM32 maps only one GPIO port to each EXTI line.
+
+Master cabin F4 on `PB12` is polled in firmware because Hall D3 uses `PC12` on EXTI12.
 
 | Function | Pin |
 |----------|-----|
 | Floor sensors F1-F4 | PA0-PA3 |
 | Emergency stop | PB4 |
-| Cabin buttons F1-F4 | PB8-PB11 |
+| Cabin buttons F1-F4 | PB8-PB10, PB12 |
 | Hall U1 | PC5 |
 | Hall D2 | PC6 |
 | Hall U2 | PC7 |
@@ -45,7 +47,7 @@ Each input uses a unique EXTI line. Do not wire multiple same-numbered pins such
 |----------|-----|
 | Floor sensors F1-F4 | PA0-PA3 |
 | Emergency stop | PB4 |
-| Cabin buttons F1-F4 | PB8-PB11 |
+| Cabin buttons F1-F4 | PB8-PB10, PB12 |
 
 ## 5. Motor LED Wiring
 PB6 to 330 ohm resistor to LED-RED anode, LED cathode to GND.

@@ -43,7 +43,7 @@ void EXTI4_Callback(void) {
 void EXTI8_Callback(void) { exti_triggered[8] = 1; }
 void EXTI9_Callback(void) { exti_triggered[9] = 1; }
 void EXTI10_Callback(void) { exti_triggered[10] = 1; }
-void EXTI11_Callback(void) { exti_triggered[11] = 1; }
+void EXTI12_Callback(void) { exti_triggered[12] = 1; }
 
 void SpiSlaveComplete_Callback(void) {
     spi_rx_ready = 1;
@@ -56,7 +56,7 @@ void Peripheral_Init(void) {
     Rcc_Init();
     Rcc_Enable(RCC_GPIOA); Rcc_Enable(RCC_GPIOB);
     Rcc_Enable(RCC_TIM2); Rcc_Enable(RCC_TIM3); Rcc_Enable(RCC_TIM4); Rcc_Enable(RCC_TIM5);
-    Rcc_Enable(RCC_SPI1); Rcc_Enable(RCC_USART1);
+    Rcc_Enable(RCC_SPI1); Rcc_Enable(RCC_USART1); Rcc_Enable(RCC_SYSCFG);
 
     for(uint8_t i=0; i<=3; i++) Gpio_Init(GPIO_A, i, GPIO_INPUT, GPIO_PULL_UP);
     Gpio_Init(GPIO_A, 4, GPIO_AF, GPIO_PUSH_PULL); Gpio_SetAF(GPIO_A, 4, GPIO_AF5);
@@ -67,7 +67,8 @@ void Peripheral_Init(void) {
 
     Gpio_Init(GPIO_B, 4, GPIO_INPUT, GPIO_PULL_UP);
     Gpio_Init(GPIO_B, 6, GPIO_AF, GPIO_PUSH_PULL); Gpio_SetAF(GPIO_B, 6, GPIO_AF2);
-    for(uint8_t i=8; i<=11; i++) Gpio_Init(GPIO_B, i, GPIO_INPUT, GPIO_PULL_UP);
+    for(uint8_t i=8; i<=10; i++) Gpio_Init(GPIO_B, i, GPIO_INPUT, GPIO_PULL_UP);
+    Gpio_Init(GPIO_B, 12, GPIO_INPUT, GPIO_PULL_UP);
 
     Pwm_Init(TIMER4, PWM_CHANNEL_1, 15, 99);
     Pwm_Start(TIMER4, PWM_CHANNEL_1);
@@ -83,10 +84,10 @@ void Peripheral_Init(void) {
     Exti_Init(EXTI_LINE_8, EXTI_PORT_B, EXTI_EDGE_FALLING, EXTI8_Callback);
     Exti_Init(EXTI_LINE_9, EXTI_PORT_B, EXTI_EDGE_FALLING, EXTI9_Callback);
     Exti_Init(EXTI_LINE_10, EXTI_PORT_B, EXTI_EDGE_FALLING, EXTI10_Callback);
-    Exti_Init(EXTI_LINE_11, EXTI_PORT_B, EXTI_EDGE_FALLING, EXTI11_Callback);
+    Exti_Init(EXTI_LINE_12, EXTI_PORT_B, EXTI_EDGE_FALLING, EXTI12_Callback);
 
-    for(uint8_t i=0; i<=11; i++) {
-        if (i <= 4 || (i >= 8 && i <= 11)) Exti_Enable(i);
+    for(uint8_t i=0; i<=12; i++) {
+        if (i <= 4 || (i >= 8 && i <= 10) || i == 12) Exti_Enable(i);
     }
 
     Nvic_EnableIrq(10); Nvic_EnableIrq(6); Nvic_EnableIrq(7);
@@ -149,7 +150,7 @@ static void Process_ExtiLine(uint8_t line) {
         case 8: if (Gpio_ReadPin(GPIO_B, 8) == LOW) Slave_AddCabinRequest(1); break;
         case 9: if (Gpio_ReadPin(GPIO_B, 9) == LOW) Slave_AddCabinRequest(2); break;
         case 10: if (Gpio_ReadPin(GPIO_B, 10) == LOW) Slave_AddCabinRequest(3); break;
-        case 11: if (Gpio_ReadPin(GPIO_B, 11) == LOW) Slave_AddCabinRequest(4); break;
+        case 12: if (Gpio_ReadPin(GPIO_B, 12) == LOW) Slave_AddCabinRequest(4); break;
         default: break;
     }
 }
@@ -164,7 +165,7 @@ int main(void) {
 
     while (1) {
         /* Process EXTI Events */
-        for (uint8_t line = 0; line < 12; line++) {
+        for (uint8_t line = 0; line < 13; line++) {
             if (exti_triggered[line]) {
                 exti_triggered[line] = 0;
                 Process_ExtiLine(line);

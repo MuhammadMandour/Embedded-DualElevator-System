@@ -11,11 +11,9 @@
 #include "RingBuffer.h"
 #include "Nvic.h"
 #include "../Lib/Std_Types.h"
-#include "../Critical/critical.h"
 // #include "../../Downloads/stm32f4-sec9 (1)/Gpio/Gpio.h"
 
 static RingBufferType usart1_rx_ring;
-static RingBufferType usart1_tx_ring;
 
 void Usart1_Init(void) {
     Gpio_Init(GPIO_A, 9, GPIO_AF, GPIO_PUSH_PULL);
@@ -41,7 +39,6 @@ void Usart1_Init(void) {
     
     /* Initialize RingBuffer for RX */
     RB_Init(&usart1_rx_ring);
-    RB_Init(&usart1_tx_ring);
     
     /* Enable RX Not Empty interrupt */
     USART1->CR1 |= USART_CR1_RXNEIE;
@@ -54,13 +51,10 @@ void Usart1_Init(void) {
 }
 
 uint8 Usart1_TransmitByte(uint8 Byte) {
-    Enter_Critical();
-    boolean queued = RB_Enqueue(&usart1_tx_ring, Byte);
-    if (queued) {
-        USART1->CR1 |= USART_CR1_TXEIE;
-    }
-    Exit_Critical();
-    return queued ? Tx_OK : Tx_NOK;
+    while (!(USART1->SR & USART_SR_TXE_Msk));
+    USART1->DR = Byte;
+    while (!(USART1->SR & USART_SR_TC_Msk));
+    return Tx_OK;
 }
 
 void Usart1_TransmitString(const char *Str) {
@@ -144,13 +138,5 @@ void USART1_IRQHandler(void) {
     if (USART1->SR & USART_SR_RXNE) {
         uint8 byte = USART1->DR;   // reading DR clears RXNE flag
         RB_Enqueue(&usart1_rx_ring, byte);
-    }
-    if ((USART1->SR & USART_SR_TXE) && (USART1->CR1 & USART_CR1_TXEIE)) {
-        uint8 byte;
-        if (RB_Dequeue(&usart1_tx_ring, &byte)) {
-            USART1->DR = byte;
-        } else {
-            USART1->CR1 &= ~USART_CR1_TXEIE;
-        }
     }
 }
