@@ -10,6 +10,8 @@ volatile uint8_t pending_head = 0;
 volatile uint8_t pending_tail = 0;
 volatile uint8_t pending_count = 0;
 
+extern uint8_t master_hallway_mask_b;
+
 static inline uint8_t get_abs_diff_disp(uint8_t a, uint8_t b) {
     return (a > b) ? (a - b) : (b - a);
 }
@@ -91,9 +93,8 @@ void Dispatcher_ReevaluateQueue(ElevatorContext_t* elev_a, ElevatorContext_t* el
             assigned = 1;
         } else {
             /* Assign to B */
-            elev_b->target_floor = call.floor;
+            master_hallway_mask_b |= (1 << (call.floor - 1));
             elev_b->request_mask |= (1 << (call.floor - 1));
-            /* Master doesn't change B's state directly, it sends target floor over SPI */
             assigned = 1;
         }
         

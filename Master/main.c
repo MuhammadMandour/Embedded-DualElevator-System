@@ -35,6 +35,7 @@ ElevatorContext_t elev_a;
 ElevatorContext_t elev_b;
 uint8_t master_tx_packet[8];
 uint8_t slave_rx_packet[8];
+uint8_t master_hallway_mask_b = 0;
 
 void EXTI0_Callback(void) { exti_triggered[0] = 1; }
 void EXTI1_Callback(void) { exti_triggered[1] = 1; }
@@ -258,6 +259,16 @@ int main(void) {
             } else {
                 Enter_Critical();
                 SPI_PackFrame(&elev_a, master_tx_packet);
+                
+                master_tx_packet[3] = 0;
+                master_tx_packet[5] = master_hallway_mask_b;
+                
+                uint8_t checksum = 0;
+                for(uint8_t i = 0; i < 7; i++) {
+                    checksum ^= master_tx_packet[i];
+                }
+                master_tx_packet[7] = checksum;
+                
                 spi_busy = 1;
                 Gpio_WritePin(GPIO_A, 4, LOW);
                 Spi1_StartAsync(master_tx_packet, slave_rx_packet, 8, SpiMasterComplete_Callback);
@@ -274,6 +285,9 @@ int main(void) {
                 spi_fault_flag = 0;
                 Enter_Critical();
                 SPI_UnpackFrame(slave_rx_packet, &elev_b);
+                if (elev_b.state == ELEV_DOOR_OPEN) {
+                    master_hallway_mask_b &= ~(1 << (elev_b.current_floor - 1));
+                }
                 Exit_Critical();
             } else {
                 spi_fault_counter++;

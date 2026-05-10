@@ -191,8 +191,8 @@ int main(void) {
                 if (elev_b.state == ELEV_INDEPENDENT) {
                     elev_b.state = ELEV_IDLE;
                 }
-                if (slave_rx_packet[3] != 0 && elev_b.state == ELEV_IDLE) {
-                    elev_b.target_floor = slave_rx_packet[3];
+                if (slave_rx_packet[5] != 0) {
+                    elev_b.request_mask |= slave_rx_packet[5];
                 }
                 /* Restart Watchdog */
                 Timer_DelayMsAsync(TIMER5, 250, SpiWatchdog_Callback);
