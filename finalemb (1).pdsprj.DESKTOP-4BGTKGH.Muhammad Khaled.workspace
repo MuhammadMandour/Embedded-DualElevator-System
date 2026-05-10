@@ -1,11 +1,11 @@
 <?xml version='1.0' encoding='UTF-8' standalone='yes'?>
 <WORKSPACE>
  <FRAME activewindow="0">
-  <PLACEMENT>2c00000002000000030000000083ffff0083fffffffffffffffffffff0ffffff0000000010060000f0030000</PLACEMENT>
+  <PLACEMENT>2c0000000200000003000000fffffffffffffffffffffffffffffffff0ffffff0000000010060000f0030000</PLACEMENT>
   <WINDOW type="default" module="ISIS">
-   <editor metric="0" gridmajor="2540000" mode="00000000" zoom="-1" scale="120" flipped="0" gridminor="254000" gridmode="32" snapidx="2" snap="254000" xcursor="16" orgmode="0" snaprange="127000">
+   <editor metric="0" gridmajor="2540000" mode="00000000" zoom="0" scale="162" flipped="0" gridminor="254000" gridmode="32" snapidx="2" snap="254000" xcursor="16" orgmode="0" snaprange="127000">
     <world y1="-8890000" x1="-12700000" y2="8890000" x2="12700000"/>
-    <centre x="-1270000" y="3810000"/>
+    <centre x="1016000" y="6096000"/>
     <origin x="0" y="0"/>
    </editor>
   </WINDOW>
@@ -18,9 +18,9 @@
   </editor>
  </MODULE>
  <MODULE name="ISIS">
-  <editor metric="0" gridmajor="2540000" mode="00000000" zoom="-1" scale="120" flipped="0" gridminor="254000" gridmode="32" snapidx="2" snap="254000" xcursor="16" orgmode="0" snaprange="127000">
+  <editor metric="0" gridmajor="2540000" mode="00000000" zoom="0" scale="162" flipped="0" gridminor="254000" gridmode="32" snapidx="2" snap="254000" xcursor="16" orgmode="0" snaprange="127000">
    <world y1="-8890000" x1="-12700000" y2="8890000" x2="12700000"/>
-   <centre x="-1270000" y="3810000"/>
+   <centre x="1016000" y="6096000"/>
    <origin x="0" y="0"/>
   </editor>
  </MODULE>
@@ -54,7 +54,7 @@
      <ITEM name="nItems">0</ITEM>
     </PROPERTIES>
    </POPUP>
-   <POPUP w="450" x="216" flags="00008023" y="761" h="250" pid="0" iid="33">
+   <POPUP w="450" x="78" flags="00000022" y="169" h="250" pid="0" iid="33">
     <PROPERTIES>
      <ITEM name="AutoEcho">0</ITEM>
      <ITEM name="HexMode">0</ITEM>
@@ -460,16 +460,16 @@
      <ITEM name="TopLineAddress">40023000</ITEM>
     </PROPERTIES>
    </POPUP>
-   <POPUP w="600" x="898" flags="0000000a" y="632" h="400" pid="100" iid="1">
+   <POPUP w="600" x="898" flags="0000000b" y="632" h="400" pid="100" iid="1">
     <PROPERTIES/>
    </POPUP>
-   <POPUP w="300" x="918" flags="0000000a" y="732" h="300" pid="101" iid="1">
+   <POPUP w="300" x="918" flags="0000000b" y="732" h="300" pid="101" iid="1">
     <PROPERTIES>
      <ITEM name="Address Column Width">100</ITEM>
      <ITEM name="AutoResize">No</ITEM>
      <ITEM name="Gridlines">Yes</ITEM>
      <ITEM name="Name Column Width">100</ITEM>
-     <ITEM name="Previous Value Column Width">-102</ITEM>
+     <ITEM name="Previous Value Column Width">100</ITEM>
      <ITEM name="ShowAddresses">Yes</ITEM>
      <ITEM name="ShowGlobals">Yes</ITEM>
      <ITEM name="ShowPreviousValues">Yes</ITEM>
@@ -486,7 +486,7 @@
    <POPUP w="30" x="938" flags="00000008" y="1029" h="13" pid="103" iid="1">
     <PROPERTIES/>
    </POPUP>
-   <POPUP w="320" x="958" flags="0000000a" y="792" h="240" pid="105" iid="1">
+   <POPUP w="320" x="958" flags="0000000b" y="792" h="240" pid="105" iid="1">
     <PROPERTIES/>
    </POPUP>
    <POPUP w="22" x="978" flags="00000008" y="1069" h="18" pid="3701" iid="1">
@@ -898,16 +898,16 @@
      <ITEM name="TopLineAddress">40023000</ITEM>
     </PROPERTIES>
    </POPUP>
-   <POPUP w="600" x="869" flags="0000000a" y="492" h="400" pid="100" iid="2">
+   <POPUP w="600" x="1320" flags="0000000b" y="632" h="400" pid="100" iid="2">
     <PROPERTIES/>
    </POPUP>
-   <POPUP w="300" x="1620" flags="0000000a" y="732" h="300" pid="101" iid="2">
+   <POPUP w="300" x="1620" flags="0000000b" y="732" h="300" pid="101" iid="2">
     <PROPERTIES>
      <ITEM name="Address Column Width">100</ITEM>
      <ITEM name="AutoResize">No</ITEM>
      <ITEM name="Gridlines">Yes</ITEM>
      <ITEM name="Name Column Width">100</ITEM>
-     <ITEM name="Previous Value Column Width">-102</ITEM>
+     <ITEM name="Previous Value Column Width">100</ITEM>
      <ITEM name="ShowAddresses">Yes</ITEM>
      <ITEM name="ShowGlobals">Yes</ITEM>
      <ITEM name="ShowPreviousValues">Yes</ITEM>
@@ -924,7 +924,7 @@
    <POPUP w="30" x="1878" flags="00000008" y="1969" h="13" pid="103" iid="2">
     <PROPERTIES/>
    </POPUP>
-   <POPUP w="320" x="1050" flags="0000000a" y="657" h="240" pid="105" iid="2">
+   <POPUP w="320" x="1600" flags="0000000b" y="792" h="240" pid="105" iid="2">
     <PROPERTIES/>
    </POPUP>
    <POPUP w="22" x="1918" flags="00000008" y="2009" h="18" pid="3701" iid="2">

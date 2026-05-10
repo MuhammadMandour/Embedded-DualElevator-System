@@ -66,7 +66,7 @@ void Pwm_SetDutyPercent(uint8 TimerId, uint8 Channel, uint8 DutyPercent) {
     }
 
     uint32 arr = timer->ARR;
-    uint32 ccr = ((uint32) DutyPercent * arr) / 100UL;
+    uint32 ccr = ((uint32) DutyPercent * (arr + 1)) / 100UL;
 
     CCR_REG(timer, Channel) = ccr;
 }

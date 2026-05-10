@@ -96,12 +96,12 @@ void Elevator_UpdateMotor(ElevatorContext_t* ctx) {
         case ELEV_IDLE:
         case ELEV_DOOR_OPEN:
         case ELEV_EMERGENCY:
-        case ELEV_INDEPENDENT:
             Pwm_SetDutyPercent(TIMER4, PWM_CHANNEL_1, 0);
             break;
             
         case ELEV_MOVING_UP:
         case ELEV_MOVING_DOWN:
+        case ELEV_INDEPENDENT:
         {
             uint8_t diff = get_abs_diff(ctx->target_floor, ctx->current_floor);
             if(diff == 1) {
