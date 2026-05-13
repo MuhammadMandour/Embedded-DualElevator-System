@@ -9,6 +9,7 @@
 #include "../Lib/Std_Types.h"
 #include "Gpio.h"
 #include "Gpio_Private.h"
+#include "../Lib/Bit_Operations.h"
 
 #define GPIO_REG(PORT_ID, REG_ID)          ((volatile uint32 *) ((PORT_ID) + (REG_ID)))
 
@@ -27,7 +28,7 @@ void Gpio_Init(uint8 PortName, uint8 PinNumber, uint8 PinMode, uint8 DefaultStat
         gpioDevice->GPIO_PUPDR &= ~(0x03 << (PinNumber * 2));
         gpioDevice->GPIO_PUPDR |= (DefaultState << (PinNumber * 2));
     } else {
-        gpioDevice->GPIO_OTYPER &= ~(0x1 << PinNumber);
+        CLEAR_BIT(gpioDevice->GPIO_OTYPER, PinNumber);
         gpioDevice->GPIO_OTYPER |= (DefaultState << (PinNumber));
     }
 
@@ -41,7 +42,7 @@ uint8 Gpio_WritePin(uint8 PortName, uint8 PinNumber, uint8 Data) {
     GpioType* gpioDevice = (GpioType*) addressMap[addressIndex];
 
     if (((gpioDevice->GPIO_MODER & (0x03 << (PinNumber * 2))) >> (PinNumber * 2)) != GPIO_INPUT) {
-        gpioDevice->GPIO_ODR &= ~(0x1 << PinNumber);
+        CLEAR_BIT(gpioDevice->GPIO_ODR, PinNumber);
         gpioDevice->GPIO_ODR  |= (Data << PinNumber);
         status = OK;
     }
@@ -52,7 +53,7 @@ uint8 Gpio_ReadPin(uint8 PortName, uint8 PinNum) {
     uint8 data = 0;
     uint8 addressIndex = PortName - GPIO_A;
     GpioType* gpioDevice = (GpioType*) addressMap[addressIndex];
-    data = (gpioDevice->GPIO_IDR & (0x1 << PinNum)) >> PinNum;
+    data = READ_BIT(gpioDevice->GPIO_IDR, PinNum);
     return data;
 }
 

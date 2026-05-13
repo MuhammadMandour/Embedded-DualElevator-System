@@ -80,10 +80,10 @@ void Peripheral_Init(void) {
     /* PA4: SPI CS (output, default HIGH) */
     Gpio_Init(GPIO_A, 4, GPIO_OUTPUT, GPIO_PUSH_PULL);
     Gpio_WritePin(GPIO_A, 4, HIGH);
-    
-    /* PD2: LED Output */
-    Gpio_Init(GPIO_D, 2, GPIO_OUTPUT, GPIO_PUSH_PULL);
-    Gpio_WritePin(GPIO_D, 2, LOW);
+    //
+    // /* PD2: LED Output */
+    // Gpio_Init(GPIO_D, 2, GPIO_OUTPUT, GPIO_PUSH_PULL);
+    // Gpio_WritePin(GPIO_D, 2, LOW);
     /* PA5-PA7: SPI1 SCK/MISO/MOSI */
     Gpio_Init(GPIO_A, 5, GPIO_AF, GPIO_PUSH_PULL); Gpio_SetAF(GPIO_A, 5, GPIO_AF5);
     Gpio_Init(GPIO_A, 6, GPIO_AF, GPIO_PUSH_PULL); Gpio_SetAF(GPIO_A, 6, GPIO_AF5);

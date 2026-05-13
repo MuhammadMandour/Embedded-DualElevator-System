@@ -15,6 +15,7 @@
 
 #include "Adc_Private.h"
 #include "Bit_Math.h"
+#include "../Lib/Bit_Operations.h"
 #include "Nvic.h"
 
 

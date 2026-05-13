@@ -1,4 +1,5 @@
 #include "spi_ipc.h"
+#include "../Lib/Bit_Operations.h"
 
 void SPI_PackFrame(ElevatorContext_t* ctx, uint8_t* frame) {
     if(!ctx || !frame) return;
@@ -21,9 +22,9 @@ void SPI_PackFrame(ElevatorContext_t* ctx, uint8_t* frame) {
     frame[5] = ctx->request_mask;
     
     uint8_t flags = 0;
-    if(ctx->emergency_flag) flags |= (1 << 0);
-    if(ctx->door_open_flag) flags |= (1 << 1);
-    if(ctx->spi_alive) flags |= (1 << 2);
+    if(ctx->emergency_flag) SET_BIT(flags, 0);
+    if(ctx->door_open_flag) SET_BIT(flags, 1);
+    if(ctx->spi_alive) SET_BIT(flags, 2);
     frame[6] = flags;
     
     uint8_t checksum = 0;

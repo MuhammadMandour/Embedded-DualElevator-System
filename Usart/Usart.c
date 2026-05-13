@@ -11,6 +11,7 @@
 #include "RingBuffer.h"
 #include "Nvic.h"
 #include "../Lib/Std_Types.h"
+#include "../Lib/Bit_Operations.h"
 // #include "../../Downloads/stm32f4-sec9 (1)/Gpio/Gpio.h"
 
 static RingBufferType usart1_rx_ring;
@@ -23,31 +24,31 @@ void Usart1_Init(void) {
     Gpio_SetAF(GPIO_A, 10, GPIO_AF7);
 
     
-    USART1->CR1 &= ~(1 << USART_CR1_M_Pos); // 8-bit word length
+    CLEAR_BIT(USART1->CR1, USART_CR1_M_Pos); // 8-bit word length
 
     USART1->CR2 &= ~(USART_CR2_STOP_Msk); // 1-stop bit at the end
 
-    USART1->CR1 &= ~(1 << USART_CR1_OVER8_Pos); // 16 over sampling
+    CLEAR_BIT(USART1->CR1, USART_CR1_OVER8_Pos); // 16 over sampling
 
     USART1->BRR = 0x8B; // Baud Rate 115200 at 16 MHz, oversampling by 16
 
     /* Enable Transmission block */
-    USART1->CR1 |= (1 << USART_CR1_TE_Pos);
+    SET_BIT(USART1->CR1, USART_CR1_TE_Pos);
 
     /* Enable Receive block */
-    USART1->CR1 |= (1 << USART_CR1_RE_Pos);
+    SET_BIT(USART1->CR1, USART_CR1_RE_Pos);
     
     /* Initialize RingBuffer for RX */
     RB_Init(&usart1_rx_ring);
     
     /* Enable RX Not Empty interrupt */
-    USART1->CR1 |= USART_CR1_RXNEIE;
+    SET_BIT(USART1->CR1, USART_CR1_RXNEIE_Pos);
     
     /* Enable USART1 interrupt in NVIC */
     Nvic_EnableIrq(USART1_IRQn);
     
     /* Enable USART1 */
-    USART1->CR1 |= (1 << USART_CR1_UE_Pos);
+    SET_BIT(USART1->CR1, USART_CR1_UE_Pos);
 }
 
 uint8 Usart1_TransmitByte(uint8 Byte) {
