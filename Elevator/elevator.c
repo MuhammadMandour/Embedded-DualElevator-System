@@ -1,5 +1,4 @@
 #include "elevator.h"
-#include "../Lib/Bit_Operations.h"
 #include "../Critical/critical.h"
 
 /* stdlib for abs */
@@ -54,7 +53,7 @@ void Elevator_RunFSM(ElevatorContext_t* ctx, ElevatorEvent_t event) {
                 ctx->state = ELEV_DOOR_OPEN;
                 ctx->direction = 0;
                 ctx->door_open_flag = 1;
-                CLEAR_BIT(ctx->request_mask, (ctx->current_floor - 1));
+                ctx->request_mask &= ~(1 << (ctx->current_floor - 1));
             } else if (event == ELEV_EVENT_TARGET_UPDATED) {
                 if (ctx->current_floor < ctx->target_floor) {
                     ctx->state = ELEV_MOVING_UP;
@@ -78,7 +77,7 @@ void Elevator_RunFSM(ElevatorContext_t* ctx, ElevatorEvent_t event) {
                 ctx->state = ELEV_DOOR_OPEN;
                 ctx->direction = 0;
                 ctx->door_open_flag = 1;
-                CLEAR_BIT(ctx->request_mask, (ctx->current_floor - 1));
+                ctx->request_mask &= ~(1 << (ctx->current_floor - 1));
             }
             break;
 
@@ -116,51 +115,4 @@ void Elevator_UpdateMotor(ElevatorContext_t* ctx) {
             break;
         }
     }
-}/* ----------------------------------------------------------------------- */
-static void Process_FloorSensor(uint8_t floor) {
-    if (elev_a.current_floor != floor) {
-        elev_a.current_floor = floor;
-        if (elev_a.current_floor == elev_a.target_floor || 
-            (elev_a.request_mask & ((uint32_t)1 << (floor - 1)))) {
-            
-            elev_a.target_floor = floor;
-            Elevator_RunFSM(&elev_a, ELEV_EVENT_FLOOR_REACHED);
-            if (elev_a.state == ELEV_DOOR_OPEN) {
-                Timer_DelayMsAsync(TIMER3, 3000, DoorTimer_Callback);
-            }
-        }
-    }
-}
-
-static void Master_AddCabinRequest(uint8_t floor) {
-    /* FIX Bug 1: use (uint32_t)1 to avoid shift UB on 8/16-bit targets */
-    elev_a.request_mask |= ((uint32_t)1 << (floor - 1));
-    if (elev_a.state == ELEV_IDLE || elev_a.state == ELEV_DOOR_OPEN) {
-        elev_a.target_floor = floor;
-        if (elev_a.current_floor == floor) {
-            Elevator_RunFSM(&elev_a, ELEV_EVENT_FLOOR_REACHED);
-            Timer_DelayMsAsync(TIMER3, 3000, DoorTimer_Callback);
-        }
-    }
-}
-
-static void Master_SelectNextCabinTarget(void) {
-    if (!(elev_a.state == ELEV_IDLE || elev_a.state == ELEV_DOOR_OPEN)) return;
-    if (elev_a.request_mask == 0) return;
-
-    uint8_t best_floor = elev_a.current_floor;
-    uint8_t best_diff  = 0xFF;
-    for (uint8_t floor = 1; floor <= 4; floor++) {
-        /* FIX Bug 1: same cast here */
-        if (elev_a.request_mask & ((uint32_t)1 << (floor - 1))) {
-            uint8_t diff = (floor > elev_a.current_floor)
-                           ? (floor - elev_a.current_floor)
-                           : (elev_a.current_floor - floor);
-            if (diff < best_diff) {
-                best_diff  = diff;
-                best_floor = floor;
-            }
-        }
-    }
-    elev_a.target_floor = best_floor;
 }
