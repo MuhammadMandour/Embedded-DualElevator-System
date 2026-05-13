@@ -140,12 +140,18 @@ void Peripheral_Init(void) {
 }
 
 /* ----------------------------------------------------------------------- */
+static uint8_t master_last_dir = 1;
+
 static void Process_FloorSensor(uint8_t floor) {
     if (elev_a.current_floor != floor) {
         elev_a.current_floor = floor;
-        if (elev_a.current_floor == elev_a.target_floor || 
-            READ_BIT(elev_a.request_mask, (floor - 1))) {
-            
+        
+        uint8_t should_stop = 0;
+        if (elev_a.current_floor == elev_a.target_floor) should_stop = 1;
+        else if (master_last_dir == 1 && READ_BIT(elev_a.request_mask, (floor - 1))) should_stop = 1;
+        else if (master_last_dir == 2 && READ_BIT(elev_a.request_mask, (floor - 1 + 4))) should_stop = 1;
+
+        if (should_stop) {
             elev_a.target_floor = floor;
             Elevator_RunFSM(&elev_a, ELEV_EVENT_FLOOR_REACHED);
             if (elev_a.state == ELEV_DOOR_OPEN) {
@@ -157,6 +163,7 @@ static void Process_FloorSensor(uint8_t floor) {
 
 static void Master_AddCabinRequest(uint8_t floor) {
     SET_BIT(elev_a.request_mask, (floor - 1));
+    SET_BIT(elev_a.request_mask, (floor - 1 + 4));
     if (elev_a.state == ELEV_IDLE || elev_a.state == ELEV_DOOR_OPEN) {
         elev_a.target_floor = floor;
         if (elev_a.current_floor == floor) {
@@ -170,20 +177,48 @@ static void Master_SelectNextCabinTarget(void) {
     if (!(elev_a.state == ELEV_IDLE || elev_a.state == ELEV_DOOR_OPEN)) return;
     if (elev_a.request_mask == 0) return;
 
-    uint8_t best_floor = elev_a.current_floor;
-    uint8_t best_diff  = 0xFF;
-    for (uint8_t floor = 1; floor <= 4; floor++) {
-        if (READ_BIT(elev_a.request_mask, (floor - 1))) {
-            uint8_t diff = (floor > elev_a.current_floor)
-                           ? (floor - elev_a.current_floor)
-                           : (elev_a.current_floor - floor);
-            if (diff < best_diff) {
-                best_diff  = diff;
-                best_floor = floor;
+    uint8_t curr = elev_a.current_floor;
+    uint8_t next_floor = 0;
+
+    if (master_last_dir == 1) { /* UP */
+        for (uint8_t f = 4; f > curr; f--) {
+            if (READ_BIT(elev_a.request_mask, f - 1) || READ_BIT(elev_a.request_mask, f - 1 + 4)) {
+                next_floor = f;
+                break;
+            }
+        }
+        if (next_floor == 0) {
+            master_last_dir = 2; /* Switch DOWN */
+            for (uint8_t f = 1; f < curr; f++) {
+                if (READ_BIT(elev_a.request_mask, f - 1) || READ_BIT(elev_a.request_mask, f - 1 + 4)) {
+                    next_floor = f;
+                    break;
+                }
+            }
+        }
+    } else { /* DOWN */
+        for (uint8_t f = 1; f < curr; f++) {
+            if (READ_BIT(elev_a.request_mask, f - 1) || READ_BIT(elev_a.request_mask, f - 1 + 4)) {
+                next_floor = f;
+                break;
+            }
+        }
+        if (next_floor == 0) {
+            master_last_dir = 1; /* Switch UP */
+            for (uint8_t f = 4; f > curr; f--) {
+                if (READ_BIT(elev_a.request_mask, f - 1) || READ_BIT(elev_a.request_mask, f - 1 + 4)) {
+                    next_floor = f;
+                    break;
+                }
             }
         }
     }
-    elev_a.target_floor = best_floor;
+
+    if (next_floor != 0) {
+        elev_a.target_floor = next_floor;
+    } else if (READ_BIT(elev_a.request_mask, curr - 1) || READ_BIT(elev_a.request_mask, curr - 1 + 4)) {
+        elev_a.target_floor = curr;
+    }
 }
 
 static void Process_ExtiLine(uint8_t line) {
@@ -290,8 +325,9 @@ int main(void) {
                 Enter_Critical();
                 SPI_PackFrame(&elev_a, master_tx_packet);
                 
-                /* Send elev_b's assigned hall calls to the Slave */
-                master_tx_packet[5] = elev_b.request_mask;
+                /* Send only newly assigned hall calls to the Slave to prevent echo loops */
+                master_tx_packet[5] = slave_new_calls;
+                slave_new_calls = 0;
                 uint8_t chk = 0;
                 for(uint8_t i = 0; i < 7; i++) chk ^= master_tx_packet[i];
                 master_tx_packet[7] = chk;
@@ -335,7 +371,7 @@ int main(void) {
 
         /* ---- Dispatcher & FSM ---------------------------------------- */
         Master_SelectNextCabinTarget();
-        Dispatcher_ReevaluateQueue(&elev_a, &elev_b, spi_fault_flag);
+        Dispatcher_AssignCalls(&elev_a, &elev_b, spi_fault_flag);
 
         if ((elev_a.state == ELEV_IDLE || elev_a.state == ELEV_DOOR_OPEN) &&
             READ_BIT(elev_a.request_mask, (elev_a.current_floor - 1))) {

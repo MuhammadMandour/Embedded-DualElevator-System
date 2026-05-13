@@ -53,7 +53,7 @@ void Elevator_RunFSM(ElevatorContext_t* ctx, ElevatorEvent_t event) {
                 ctx->state = ELEV_DOOR_OPEN;
                 ctx->direction = 0;
                 ctx->door_open_flag = 1;
-                ctx->request_mask &= ~(1 << (ctx->current_floor - 1));
+                ctx->request_mask &= ~((1 << (ctx->current_floor - 1)) | (1 << (ctx->current_floor - 1 + 4)));
             } else if (event == ELEV_EVENT_TARGET_UPDATED) {
                 if (ctx->current_floor < ctx->target_floor) {
                     ctx->state = ELEV_MOVING_UP;
@@ -77,7 +77,7 @@ void Elevator_RunFSM(ElevatorContext_t* ctx, ElevatorEvent_t event) {
                 ctx->state = ELEV_DOOR_OPEN;
                 ctx->direction = 0;
                 ctx->door_open_flag = 1;
-                ctx->request_mask &= ~(1 << (ctx->current_floor - 1));
+                ctx->request_mask &= ~((1 << (ctx->current_floor - 1)) | (1 << (ctx->current_floor - 1 + 4)));
             }
             break;
 

@@ -5,40 +5,30 @@
 #include "../Elevator/elevator.h"
 
 /* ----------------------------------------------------------------------- *
- * Configuration
+ * Dispatcher Bitmaps (replaces queue)
  * ----------------------------------------------------------------------- */
-#ifndef MAX_PENDING_CALLS
-#  define MAX_PENDING_CALLS  16u
-#endif
-
-/* ----------------------------------------------------------------------- *
- * Pending call record
- * ----------------------------------------------------------------------- */
-typedef struct {
-    uint8_t floor;
-    uint8_t direction;  /* 1 = UP, 2 = DOWN */
-} CallRequest_t;
-
-/* ----------------------------------------------------------------------- *
- * Queue state  — defined in dispatcher.c, declared here for other modules
- *
- * NOTE: do NOT re-define these variables in any other .c file.
- *       Other translation units must use these extern declarations only.
- * ----------------------------------------------------------------------- */
-extern volatile uint8_t pending_head;
-extern volatile uint8_t pending_tail;
-extern volatile uint8_t pending_count;
+extern volatile uint8_t hall_up_requests;
+extern volatile uint8_t hall_down_requests;
+extern volatile uint8_t slave_new_calls;
 
 /* ----------------------------------------------------------------------- *
  * Public API
  * ----------------------------------------------------------------------- */
 
 /**
- * @brief  Enqueue a hall call.
- * @param  floor      Requested floor  (1-based)
+ * @brief  Add a hall call to the dispatcher bitmap.
+ * @param  floor      Requested floor (1-based)
  * @param  direction  1 = UP, 2 = DOWN
  */
 void Dispatcher_AddCall(uint8_t floor, uint8_t direction);
+
+/**
+ * @brief  Assign pending bitmap requests to the best available elevator.
+ * @param  elev_a         Pointer to local (master) elevator context
+ * @param  elev_b         Pointer to remote (slave) elevator context
+ * @param  spi_fault_flag 1 = SPI link to elevator B is faulted, 0 = healthy
+ */
+void Dispatcher_AssignCalls(ElevatorContext_t *elev_a, ElevatorContext_t *elev_b, uint8_t spi_fault_flag);
 
 /**
  * @brief  Score how well an elevator can serve a call.
@@ -60,20 +50,5 @@ uint8_t Dispatcher_CalculateScore(ElevatorContext_t *ctx,
                                    uint8_t            call_floor,
                                    uint8_t            call_dir,
                                    uint8_t            spi_fault_flag);
-
-/**
- * @brief  Attempt to assign every pending call to the best elevator.
- *
- *         Calls that cannot be assigned yet remain in the queue.
- *         When spi_fault_flag == 1, elevator B is treated as unavailable
- *         and all assignable calls are routed to elevator A.
- *
- * @param  elev_a         Pointer to local  (master) elevator context
- * @param  elev_b         Pointer to remote (slave)  elevator context
- * @param  spi_fault_flag 1 = SPI link to elevator B is faulted, 0 = healthy
- */
-void Dispatcher_ReevaluateQueue(ElevatorContext_t *elev_a,
-                                 ElevatorContext_t *elev_b,
-                                 uint8_t            spi_fault_flag);
 
 #endif /* DISPATCHER_H */

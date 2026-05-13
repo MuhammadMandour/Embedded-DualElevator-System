@@ -28,7 +28,7 @@ typedef struct {
     uint8_t current_floor;
     uint8_t target_floor;
     uint8_t direction; /* 0=NONE, 1=UP, 2=DOWN */
-    uint8_t request_mask; /* bit0=F1, bit1=F2, bit2=F3, bit3=F4 */
+    uint8_t request_mask; /* bit0-3=UP/Cabin F1-F4, bit4-7=DOWN/Cabin F1-F4 */
     uint8_t emergency_flag;
     uint8_t door_open_flag;
     uint8_t spi_alive;
