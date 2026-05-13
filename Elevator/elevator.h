@@ -38,4 +38,8 @@ void Elevator_InitContext(ElevatorContext_t* ctx, uint8_t initial_floor);
 void Elevator_RunFSM(ElevatorContext_t* ctx, ElevatorEvent_t event);
 void Elevator_UpdateMotor(ElevatorContext_t* ctx);
 
+uint8_t Elevator_HasRequestAbove(ElevatorContext_t* ctx);
+uint8_t Elevator_HasRequestBelow(ElevatorContext_t* ctx);
+uint8_t Elevator_GetNextFloor(ElevatorContext_t* ctx, uint8_t* last_dir);
+
 #endif /* ELEVATOR_H */

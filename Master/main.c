@@ -175,49 +175,9 @@ static void Master_AddCabinRequest(uint8_t floor) {
 
 static void Master_SelectNextCabinTarget(void) {
     if (!(elev_a.state == ELEV_IDLE || elev_a.state == ELEV_DOOR_OPEN)) return;
-    if (elev_a.request_mask == 0) return;
-
-    uint8_t curr = elev_a.current_floor;
-    uint8_t next_floor = 0;
-
-    if (master_last_dir == 1) { /* UP */
-        for (uint8_t f = 4; f > curr; f--) {
-            if (READ_BIT(elev_a.request_mask, f - 1) || READ_BIT(elev_a.request_mask, f - 1 + 4)) {
-                next_floor = f;
-                break;
-            }
-        }
-        if (next_floor == 0) {
-            master_last_dir = 2; /* Switch DOWN */
-            for (uint8_t f = 1; f < curr; f++) {
-                if (READ_BIT(elev_a.request_mask, f - 1) || READ_BIT(elev_a.request_mask, f - 1 + 4)) {
-                    next_floor = f;
-                    break;
-                }
-            }
-        }
-    } else { /* DOWN */
-        for (uint8_t f = 1; f < curr; f++) {
-            if (READ_BIT(elev_a.request_mask, f - 1) || READ_BIT(elev_a.request_mask, f - 1 + 4)) {
-                next_floor = f;
-                break;
-            }
-        }
-        if (next_floor == 0) {
-            master_last_dir = 1; /* Switch UP */
-            for (uint8_t f = 4; f > curr; f--) {
-                if (READ_BIT(elev_a.request_mask, f - 1) || READ_BIT(elev_a.request_mask, f - 1 + 4)) {
-                    next_floor = f;
-                    break;
-                }
-            }
-        }
-    }
-
-    if (next_floor != 0) {
-        elev_a.target_floor = next_floor;
-    } else if (READ_BIT(elev_a.request_mask, curr - 1) || READ_BIT(elev_a.request_mask, curr - 1 + 4)) {
-        elev_a.target_floor = curr;
+    uint8_t next = Elevator_GetNextFloor(&elev_a, &master_last_dir);
+    if (next != 0) {
+        elev_a.target_floor = next;
     }
 }
 

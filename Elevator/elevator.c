@@ -116,3 +116,72 @@ void Elevator_UpdateMotor(ElevatorContext_t* ctx) {
         }
     }
 }
+
+uint8_t Elevator_HasRequestAbove(ElevatorContext_t* ctx) {
+    if (!ctx) return 0;
+    for (uint8_t f = ctx->current_floor + 1; f <= 4; f++) {
+        if ((ctx->request_mask & (1 << (f - 1))) || (ctx->request_mask & (1 << (f - 1 + 4)))) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+uint8_t Elevator_HasRequestBelow(ElevatorContext_t* ctx) {
+    if (!ctx) return 0;
+    for (uint8_t f = 1; f < ctx->current_floor; f++) {
+        if ((ctx->request_mask & (1 << (f - 1))) || (ctx->request_mask & (1 << (f - 1 + 4)))) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+uint8_t Elevator_GetNextFloor(ElevatorContext_t* ctx, uint8_t* last_dir) {
+    if (!ctx || !last_dir) return 0;
+    if (ctx->request_mask == 0) return 0;
+
+    uint8_t curr = ctx->current_floor;
+
+    if (*last_dir == 1) { /* UP */
+        if (Elevator_HasRequestAbove(ctx)) {
+            for (uint8_t f = 4; f > curr; f--) {
+                if ((ctx->request_mask & (1 << (f - 1))) || (ctx->request_mask & (1 << (f - 1 + 4)))) {
+                    return f;
+                }
+            }
+        } else {
+            *last_dir = 2; /* DOWN */
+            if (Elevator_HasRequestBelow(ctx)) {
+                for (uint8_t f = 1; f < curr; f++) {
+                    if ((ctx->request_mask & (1 << (f - 1))) || (ctx->request_mask & (1 << (f - 1 + 4)))) {
+                        return f;
+                    }
+                }
+            }
+        }
+    } else { /* DOWN */
+        if (Elevator_HasRequestBelow(ctx)) {
+            for (uint8_t f = 1; f < curr; f++) {
+                if ((ctx->request_mask & (1 << (f - 1))) || (ctx->request_mask & (1 << (f - 1 + 4)))) {
+                    return f;
+                }
+            }
+        } else {
+            *last_dir = 1; /* UP */
+            if (Elevator_HasRequestAbove(ctx)) {
+                for (uint8_t f = 4; f > curr; f--) {
+                    if ((ctx->request_mask & (1 << (f - 1))) || (ctx->request_mask & (1 << (f - 1 + 4)))) {
+                        return f;
+                    }
+                }
+            }
+        }
+    }
+
+    if ((ctx->request_mask & (1 << (curr - 1))) || (ctx->request_mask & (1 << (curr - 1 + 4)))) {
+        return curr;
+    }
+
+    return 0;
+}
