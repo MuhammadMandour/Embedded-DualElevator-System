@@ -21,6 +21,7 @@
 #include "../Spi/Spi.h"
 #include "../Usart/Usart.h"
 #include "../Nvic/Nvic.h"
+#include "../Lib/Bit_Operations.h"
 
 volatile uint8_t exti_triggered[16] = {0};
 volatile uint8_t spi_trigger_flag   = 0;
@@ -80,10 +81,6 @@ void Peripheral_Init(void) {
     /* PA4: SPI CS (output, default HIGH) */
     Gpio_Init(GPIO_A, 4, GPIO_OUTPUT, GPIO_PUSH_PULL);
     Gpio_WritePin(GPIO_A, 4, HIGH);
-    //
-    // /* PD2: LED Output */
-    // Gpio_Init(GPIO_D, 2, GPIO_OUTPUT, GPIO_PUSH_PULL);
-    // Gpio_WritePin(GPIO_D, 2, LOW);
     /* PA5-PA7: SPI1 SCK/MISO/MOSI */
     Gpio_Init(GPIO_A, 5, GPIO_AF, GPIO_PUSH_PULL); Gpio_SetAF(GPIO_A, 5, GPIO_AF5);
     Gpio_Init(GPIO_A, 6, GPIO_AF, GPIO_PUSH_PULL); Gpio_SetAF(GPIO_A, 6, GPIO_AF5);
@@ -150,7 +147,7 @@ static void Process_FloorSensor(uint8_t floor) {
     if (elev_a.current_floor != floor) {
         elev_a.current_floor = floor;
         if (elev_a.current_floor == elev_a.target_floor || 
-            (elev_a.request_mask & ((uint32_t)1 << (floor - 1)))) {
+            READ_BIT(elev_a.request_mask, (floor - 1))) {
             
             elev_a.target_floor = floor;
             Elevator_RunFSM(&elev_a, ELEV_EVENT_FLOOR_REACHED);
@@ -162,8 +159,7 @@ static void Process_FloorSensor(uint8_t floor) {
 }
 
 static void Master_AddCabinRequest(uint8_t floor) {
-    /* FIX Bug 1: use (uint32_t)1 to avoid shift UB on 8/16-bit targets */
-    elev_a.request_mask |= ((uint32_t)1 << (floor - 1));
+    SET_BIT(elev_a.request_mask, (floor - 1));
     if (elev_a.state == ELEV_IDLE || elev_a.state == ELEV_DOOR_OPEN) {
         elev_a.target_floor = floor;
         if (elev_a.current_floor == floor) {
@@ -180,8 +176,7 @@ static void Master_SelectNextCabinTarget(void) {
     uint8_t best_floor = elev_a.current_floor;
     uint8_t best_diff  = 0xFF;
     for (uint8_t floor = 1; floor <= 4; floor++) {
-        /* FIX Bug 1: same cast here */
-        if (elev_a.request_mask & ((uint32_t)1 << (floor - 1))) {
+        if (READ_BIT(elev_a.request_mask, (floor - 1))) {
             uint8_t diff = (floor > elev_a.current_floor)
                            ? (floor - elev_a.current_floor)
                            : (elev_a.current_floor - floor);
@@ -222,18 +217,18 @@ static void Process_ExtiLine(uint8_t line) {
 static uint16_t Master_ReadInputMask(void) {
     uint16_t mask = 0;
     for (uint8_t line = 0; line <= 3; line++) {
-        if (Gpio_ReadPin(GPIO_A, line) == LOW) mask |= (uint16_t)(1U << line);
+        if (Gpio_ReadPin(GPIO_A, line) == LOW) SET_BIT(mask, line);
     }
-    if (Gpio_ReadPin(GPIO_B, 4) == LOW) mask |= (uint16_t)(1U << 4);
+    if (Gpio_ReadPin(GPIO_B, 4) == LOW) SET_BIT(mask, 4);
     for (uint8_t line = 5; line <= 7; line++) {
-        if (Gpio_ReadPin(GPIO_C, line) == LOW) mask |= (uint16_t)(1U << line);
+        if (Gpio_ReadPin(GPIO_C, line) == LOW) SET_BIT(mask, line);
     }
     for (uint8_t line = 8; line <= 10; line++) {
-        if (Gpio_ReadPin(GPIO_B, line) == LOW) mask |= (uint16_t)(1U << line);
+        if (Gpio_ReadPin(GPIO_B, line) == LOW) SET_BIT(mask, line);
     }
-    if (Gpio_ReadPin(GPIO_C, 12) == LOW) mask |= (uint16_t)(1U << 12);
-    if (Gpio_ReadPin(GPIO_C, 13) == LOW) mask |= (uint16_t)(1U << 13);
-    if (Gpio_ReadPin(GPIO_C, 14) == LOW) mask |= (uint16_t)(1U << 14);
+    if (Gpio_ReadPin(GPIO_C, 12) == LOW) SET_BIT(mask, 12);
+    if (Gpio_ReadPin(GPIO_C, 13) == LOW) SET_BIT(mask, 13);
+    if (Gpio_ReadPin(GPIO_C, 14) == LOW) SET_BIT(mask, 14);
     return mask;
 }
 
@@ -356,7 +351,7 @@ int main(void) {
         Dispatcher_ReevaluateQueue(&elev_a, &elev_b, spi_fault_flag);
 
         if ((elev_a.state == ELEV_IDLE || elev_a.state == ELEV_DOOR_OPEN) &&
-            (elev_a.request_mask & ((uint32_t)1 << (elev_a.current_floor - 1)))) {
+            READ_BIT(elev_a.request_mask, (elev_a.current_floor - 1))) {
             Elevator_RunFSM(&elev_a, ELEV_EVENT_FLOOR_REACHED);
             if (elev_a.state == ELEV_DOOR_OPEN) {
                 Timer_DelayMsAsync(TIMER3, 3000, DoorTimer_Callback);

@@ -20,6 +20,7 @@
 #include "../Spi/Spi.h"
 #include "../Usart/Usart.h"
 #include "../Nvic/Nvic.h"
+#include "../Lib/Bit_Operations.h"
 
 volatile uint8_t exti_triggered[16] = {0};
 volatile uint8_t spi_rx_ready      = 0;
@@ -60,10 +61,6 @@ void Peripheral_Init(void) {
 
     /* PA0-PA3: floor sensors */
     for (uint8_t i = 0; i <= 3; i++) Gpio_Init(GPIO_A, i, GPIO_INPUT, GPIO_PULL_UP);
-    
-    /* PD2: LED Output */
-    // Gpio_Init(GPIO_D, 2, GPIO_OUTPUT, GPIO_PUSH_PULL);
-    // Gpio_WritePin(GPIO_D, 2, LOW);
     /* PA4-PA7: SPI1 NSS/SCK/MISO/MOSI (slave) */
     Gpio_Init(GPIO_A, 4, GPIO_AF, GPIO_PUSH_PULL); Gpio_SetAF(GPIO_A, 4, GPIO_AF5);
     Gpio_Init(GPIO_A, 5, GPIO_AF, GPIO_PUSH_PULL); Gpio_SetAF(GPIO_A, 5, GPIO_AF5);
@@ -117,7 +114,7 @@ static void Process_FloorSensor(uint8_t floor) {
     if (elev_b.current_floor != floor) {
         elev_b.current_floor = floor;
         if (elev_b.current_floor == elev_b.target_floor ||
-            (elev_b.request_mask & ((uint32_t)1 << (floor - 1)))) {
+            READ_BIT(elev_b.request_mask, (floor - 1))) {
             
             elev_b.target_floor = floor;
             Elevator_RunFSM(&elev_b, ELEV_EVENT_FLOOR_REACHED);
@@ -129,8 +126,7 @@ static void Process_FloorSensor(uint8_t floor) {
 }
 
 static void Slave_AddCabinRequest(uint8_t floor) {
-    /* FIX Bug 8: use (uint32_t)1 to avoid shift UB on 8/16-bit targets */
-    elev_b.request_mask |= ((uint32_t)1 << (floor - 1));
+    SET_BIT(elev_b.request_mask, (floor - 1));
     if (elev_b.state == ELEV_IDLE || elev_b.state == ELEV_DOOR_OPEN ||
         elev_b.state == ELEV_INDEPENDENT) {
         elev_b.target_floor = floor;
@@ -149,8 +145,7 @@ static void Slave_SelectNextCabinTarget(void) {
     uint8_t best_floor = elev_b.current_floor;
     uint8_t best_diff  = 0xFF;
     for (uint8_t floor = 1; floor <= 4; floor++) {
-        /* FIX Bug 8: same cast */
-        if (elev_b.request_mask & ((uint32_t)1 << (floor - 1))) {
+        if (READ_BIT(elev_b.request_mask, (floor - 1))) {
             uint8_t diff = (floor > elev_b.current_floor)
                            ? (floor - elev_b.current_floor)
                            : (elev_b.current_floor - floor);
@@ -251,7 +246,7 @@ int main(void) {
 
         if ((elev_b.state == ELEV_IDLE || elev_b.state == ELEV_DOOR_OPEN ||
              elev_b.state == ELEV_INDEPENDENT) &&
-            (elev_b.request_mask & ((uint32_t)1 << (elev_b.current_floor - 1)))) {
+            READ_BIT(elev_b.request_mask, (elev_b.current_floor - 1))) {
             Elevator_RunFSM(&elev_b, ELEV_EVENT_FLOOR_REACHED);
             if (elev_b.state == ELEV_DOOR_OPEN) {
                 Timer_DelayMsAsync(TIMER3, 3000, DoorTimer_Callback);
