@@ -104,7 +104,6 @@ void Dispatcher_ReevaluateQueue(ElevatorContext_t *elev_a,
 
         uint8_t score_a = Dispatcher_CalculateScore(elev_a, call.floor, call.direction, 0);
 
-        /* FIX: when SPI is faulted, elevator B is unreachable → score 99  */
         uint8_t score_b = (spi_fault_flag == 1)
                           ? 99u
                           : Dispatcher_CalculateScore(elev_b, call.floor, call.direction, 0);
@@ -115,15 +114,11 @@ void Dispatcher_ReevaluateQueue(ElevatorContext_t *elev_a,
             /* Neither elevator can serve this call right now — keep it     */
 
         } else if (score_a <= score_b) {
-            /* Assign to A  (tie → A wins deterministically)                */
-            elev_a->request_mask |= ((uint32_t)1 << (call.floor - 1)); /* FIX: cast avoids 8/16-bit shift UB */
+            elev_a->request_mask |= ((uint32_t)1 << (call.floor - 1));
             assigned = 1;
 
         } else {
-            /* FIX: only assign to B when B actually has a valid score      */
-            /* (score_b != 99 is guaranteed by the else branch logic above) */
-            elev_b->request_mask |= ((uint32_t)1 << (call.floor - 1)); /* FIX: same cast */
-            /* Master sends assigned calls to slave over SPI (caller's duty)*/
+            elev_b->request_mask |= ((uint32_t)1 << (call.floor - 1));
             assigned = 1;
         }
 

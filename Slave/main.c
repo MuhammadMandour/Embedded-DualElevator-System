@@ -213,8 +213,6 @@ int main(void) {
             if (SPI_ValidateFrame(slave_rx_packet)) {
                 elev_b.spi_alive = 1;
 
-                /* FIX Bug 10: exit INDEPENDENT via FSM, not direct write,
-                   so entry actions (motor/door state) are handled properly */
                 if (elev_b.state == ELEV_INDEPENDENT) {
                     elev_b.state = ELEV_IDLE;
                 }
@@ -222,12 +220,6 @@ int main(void) {
                 /* Accept assigned hall calls from master */
                 elev_b.request_mask |= slave_rx_packet[5];
 
-                /* FIX Bug 9: restart watchdog only on valid frame —
-                   if bytes arrived but CRC is bad the link may be noisy;
-                   keep the watchdog running so INDEPENDENT mode triggers
-                   correctly if master truly disappears.
-                   NOTE: if your protocol can produce transient CRC errors
-                   on a healthy link, move this call outside the if-block.  */
                 Timer_DelayMsAsync(TIMER5, 250, SpiWatchdog_Callback);
             }
             /* No else: a single bad frame doesn't restart the watchdog —

@@ -123,9 +123,6 @@ void Peripheral_Init(void) {
     Exti_Init(EXTI_LINE_13, EXTI_PORT_C, EXTI_EDGE_FALLING, EXTI13_Callback);
     Exti_Init(EXTI_LINE_14, EXTI_PORT_C, EXTI_EDGE_FALLING, EXTI14_Callback);
 
-    /* FIX Bug 6: enable only the lines that were actually initialised above.
-       Original loop 0-14 also enabled line 11 which has no Exti_Init / callback,
-       risking a spurious or unhandled interrupt.                                 */
     const uint8_t enabled_lines[] = {0,1,2,3,4,5,6,7,8,9,10,12,13,14};
     for (uint8_t i = 0; i < sizeof(enabled_lines); i++) {
         Exti_Enable(enabled_lines[i]);
@@ -191,25 +188,24 @@ static void Master_SelectNextCabinTarget(void) {
 
 static void Process_ExtiLine(uint8_t line) {
     switch (line) {
-        case 0:  if (Gpio_ReadPin(GPIO_A, 0)  == LOW) { Usart1_TransmitString("Floor sensor F1\r\n"); Process_FloorSensor(1); } break;
-        case 1:  if (Gpio_ReadPin(GPIO_A, 1)  == LOW) { Usart1_TransmitString("Floor sensor F2\r\n"); Process_FloorSensor(2); } break;
-        case 2:  if (Gpio_ReadPin(GPIO_A, 2)  == LOW) { Usart1_TransmitString("Floor sensor F3\r\n"); Process_FloorSensor(3); } break;
-        case 3:  if (Gpio_ReadPin(GPIO_A, 3)  == LOW) { Usart1_TransmitString("Floor sensor F4\r\n"); Process_FloorSensor(4); } break;
+        case 0:  if (Gpio_ReadPin(GPIO_A, 0)  == LOW) { Process_FloorSensor(1); } break;
+        case 1:  if (Gpio_ReadPin(GPIO_A, 1)  == LOW) { Process_FloorSensor(2); } break;
+        case 2:  if (Gpio_ReadPin(GPIO_A, 2)  == LOW) { Process_FloorSensor(3); } break;
+        case 3:  if (Gpio_ReadPin(GPIO_A, 3)  == LOW) { Process_FloorSensor(4); } break;
         case 4:
             if (Gpio_ReadPin(GPIO_B, 4) == LOW) {
-                Usart1_TransmitString("Emergency\r\n");
                 Elevator_RunFSM(&elev_a, ELEV_EVENT_EMERGENCY_TOGGLE);
             }
             break;
-        case 5:  if (Gpio_ReadPin(GPIO_C, 5)  == LOW) { Usart1_TransmitString("Hall U1\r\n"); Dispatcher_AddCall(1, 1); } break;
-        case 6:  if (Gpio_ReadPin(GPIO_C, 6)  == LOW) { Usart1_TransmitString("Hall D2\r\n"); Dispatcher_AddCall(2, 2); } break;
-        case 7:  if (Gpio_ReadPin(GPIO_C, 7)  == LOW) { Usart1_TransmitString("Hall U2\r\n"); Dispatcher_AddCall(2, 1); } break;
-        case 8:  if (Gpio_ReadPin(GPIO_B, 8)  == LOW) { Usart1_TransmitString("Cabin F1\r\n"); Master_AddCabinRequest(1); } break;
-        case 9:  if (Gpio_ReadPin(GPIO_B, 9)  == LOW) { Usart1_TransmitString("Cabin F2\r\n"); Master_AddCabinRequest(2); } break;
-        case 10: if (Gpio_ReadPin(GPIO_B, 10) == LOW) { Usart1_TransmitString("Cabin F3\r\n"); Master_AddCabinRequest(3); } break;
-        case 12: if (Gpio_ReadPin(GPIO_C, 12) == LOW) { Usart1_TransmitString("Hall D3\r\n"); Dispatcher_AddCall(3, 2); } break;
-        case 13: if (Gpio_ReadPin(GPIO_C, 13) == LOW) { Usart1_TransmitString("Hall U3\r\n"); Dispatcher_AddCall(3, 1); } break;
-        case 14: if (Gpio_ReadPin(GPIO_C, 14) == LOW) { Usart1_TransmitString("Hall D4\r\n"); Dispatcher_AddCall(4, 2); } break;
+        case 5:  if (Gpio_ReadPin(GPIO_C, 5)  == LOW) { Dispatcher_AddCall(1, 1); } break;
+        case 6:  if (Gpio_ReadPin(GPIO_C, 6)  == LOW) { Dispatcher_AddCall(2, 2); } break;
+        case 7:  if (Gpio_ReadPin(GPIO_C, 7)  == LOW) { Dispatcher_AddCall(2, 1); } break;
+        case 8:  if (Gpio_ReadPin(GPIO_B, 8)  == LOW) { Master_AddCabinRequest(1); } break;
+        case 9:  if (Gpio_ReadPin(GPIO_B, 9)  == LOW) { Master_AddCabinRequest(2); } break;
+        case 10: if (Gpio_ReadPin(GPIO_B, 10) == LOW) { Master_AddCabinRequest(3); } break;
+        case 12: if (Gpio_ReadPin(GPIO_C, 12) == LOW) { Dispatcher_AddCall(3, 2); } break;
+        case 13: if (Gpio_ReadPin(GPIO_C, 13) == LOW) { Dispatcher_AddCall(3, 1); } break;
+        case 14: if (Gpio_ReadPin(GPIO_C, 14) == LOW) { Dispatcher_AddCall(4, 2); } break;
         default: break;
     }
 }
@@ -243,10 +239,6 @@ int main(void) {
 
     while (1) {
         /* ---- EXTI flag processing ------------------------------------ */
-        /* FIX Bug 2 & 3: process EXTI flags first; only fall through to
-           GPIO polling if NO flag was pending this cycle.  This prevents
-           every event from being dispatched twice (once via flag, once via
-           pressed_mask).  prev_input_mask is updated once at the bottom.  */
         uint8_t exti_handled = 0;
         for (uint8_t line = 0; line < 15; line++) {
             if (exti_triggered[line]) {
@@ -267,7 +259,7 @@ int main(void) {
                     Process_ExtiLine(line);
                 }
             }
-            prev_input_mask = input_mask;   /* FIX Bug 3: update once, here */
+            prev_input_mask = input_mask;
         } else {
             /* Keep prev_input_mask in sync even when EXTI handled events */
             prev_input_mask = Master_ReadInputMask();
@@ -292,13 +284,9 @@ int main(void) {
             spi_trigger_flag = 0;
 
             if (spi_busy) {
-                /* FIX Bug 4: cap counter before increment to prevent
-                   uint8_t rollover from clearing spi_fault_flag          */
                 if (spi_fault_counter < 0xFF) spi_fault_counter++;
                 if (spi_fault_counter >= 4)   spi_fault_flag = 1;
             } else {
-                /* FIX Bug 5: assert CS inside the critical section so no
-                   interrupt can fire between CS-low and Spi1_StartAsync   */
                 Enter_Critical();
                 SPI_PackFrame(&elev_a, master_tx_packet);
                 
@@ -327,7 +315,6 @@ int main(void) {
                 SPI_UnpackFrame(slave_rx_packet, &elev_b);
                 Exit_Critical();
             } else {
-                /* FIX Bug 4: same overflow cap here */
                 if (spi_fault_counter < 0xFF) spi_fault_counter++;
                 if (spi_fault_counter >= 4)   spi_fault_flag = 1;
             }

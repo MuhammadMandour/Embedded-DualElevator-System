@@ -159,7 +159,6 @@ void Adc_ConfigScanGroup_Continuous(uint8* Channels, uint8 NumChannels)
     /* Enable Scan mode */
     SET_BIT(ADC1->CR1, CR1_SCAN);
 
-    /* FIX 1: Enable Continuous conversion (was CLEAR_BIT — bug!) */
     SET_BIT(ADC1->CR2, CR2_CONT);
 
     /* EOCS = 1  →  EOC flag after *each* channel (not after sequence) */
